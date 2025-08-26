@@ -1,0 +1,212 @@
+Deep Learning Course 2: Hyperparameter Tuning
+
+Hyperparameters - Tuning Tips:
+    1. Try Random Values (Don't Use Grid Search):
+        Grid search wastes time on unimportant combos
+        Random search covers more area with fewer trials
+        Especially useful when only a few hyperparameters matter most
+        Statistically proven to outperform grid in high dimensions
+
+    2. Coarse to Fine Strategy:
+        Start wide: Pick rough value ranges (e.g., LR from 1e-4 to 1)
+        Observe trends: Which zones work best?
+        Zoom in: Narrow down and search more finely in that zone
+        Helps avoid overfitting to noisy validation scores early
+        More efficient and leads to better final models
+
+PICKING HYPERPARAMETERS — SCALE MATTERS
+    Linear (Non-Log) Scale (Not Ideal for Most)
+        Picks values linearly (e.g., 0.001, 0.002, 0.003...)
+        Disadvantages:
+            Wastes trials in unimportant regions
+            May completely miss useful values (like 1e-5)
+            Doesn’t reflect exponential behavior of many hyperparameters
+
+    Log Scale (Recommended)
+        Use when hyperparameter affects learning exponentially (e.g., learning rate, regularization)
+        Format: hyperparameter = 10^r, where r is randomly chosen from a range (e.g., -4 to 0)
+
+        Examples:
+            Learning Rate → 10^-3 = 0.001
+            Lambda (L2 penalty) → 10^-2 = 0.01
+
+        Advantages:
+            Explores very small and very large values efficiently
+            Avoids clustering around large numbers
+            Reflects true sensitivity of the model to these values
+
+Normalization in Neural Networks:
+    Neural networks can suffer from internal covariate shift, where distribution of inputs to layers changes during training.
+    Normalization helps stabilize and speed up training by keeping activations in a stable range.
+
+    1. Batch Normalization:
+            Applied to activations of each layer.
+            For mini-batch input x = [x1, x2, ..., xm], 
+        
+        Compute:
+            Mean:
+                mu = (1/m) * sum(xi)
+
+            Variance:
+                var = (1/m) * sum((xi - mu)^2)
+
+            Normalize:
+                x_norm = (xi - mu) / sqrt(var + epsilon)
+
+            Scale and shift:
+                x_out = gamma * x_norm + beta
+                Where:
+                    gamma and beta are learnable parameters.
+                    epsilon is a small constant (like 1e-8) to avoid division by zero.
+
+        Benefits:
+            Faster convergence.
+            Allows higher learning rates.
+            Acts as a regularizer (sometimes replaces dropout).
+        Where to apply: Usually after linear transformation (Wx + b) and before activation.
+
+    Intuition Behind gamma and beta
+        x_norm ensures values are standardized, but may remove useful variance.
+        gamma (scale) and beta (shift) reintroduce flexibility:
+            gamma stretches or shrinks the distribution
+            beta shifts it up or down
+        The formula x_out = gamma * x_norm + beta looks like a linear equation.
+            x_norm is already normalized (mean 0, variance 1)
+            Multiplying by gamma adjusts the spread (like scaling left/right)
+            Adding beta shifts the center (like moving up/down)
+
+    Gradient Descent in BatchNorm
+        Gradient descent updates gamma and beta just like weights and biases.
+        Gradients are computed for gamma and beta during backpropagation.
+        These gradients tell how much each parameter contributed to the error.
+        The optimizer adjusts gamma and beta using learning rate and gradients.
+        This helps the network fine-tune the normalization process dynamically during training.
+
+        FORMULA:
+            γ ← γ - learning_rate * ∂Loss/∂γ  
+            β ← β - learning_rate * ∂Loss/∂β
+
+Covariate Shift
+    Covariate shift occurs when the distribution of input data changes between training and testing, even though the relationship between 
+    inputs and outputs remains the same. That is, P(x) changes but P(y|x) stays constant. This misalignment can cause models to perform poorly 
+    on new data because they were trained on a different input distribution than what they encounter during inference.
+
+    It often happens due to differences in environments, data sources, or changes over time. For instance, if a model is trained on clear images 
+    but tested on blurry ones, it may fail to generalize despite the labels being consistent.
+
+    To reduce the internal version of this—where intermediate layers see shifting distributions during training—techniques like Batch 
+    Normalization are used. BatchNorm stabilizes the learning by normalizing the input to each layer, leading to faster and more reliable convergence.
+
+    Example: Handwritten Digit Classifier
+        Suppose you are training a neural network to classify handwritten digits (0–9) using grayscale images from the MNIST dataset. 
+        Each image is 28x28 pixels, and pixel values range from 0 to 255.
+
+        During training:
+            All images are scanned from high-resolution devices under uniform lighting.
+            Pixel intensities are normalized to be centered around 0 with unit variance.
+            The model learns to predict digits accurately under these conditions.
+
+        Now during deployment (testing):
+            The input images come from mobile cameras in varying lighting.
+            Some are dim, others overexposed. The pixel distributions are shifted: some have lower means, some have higher variances.
+
+            This shift in input distribution is covariate shift. The relationship between image content and digit label hasn't changed, 
+            but the distribution of input features has. The model might now misclassify digits, not because the digit shapes are different, 
+            but because their pixel intensities are distributed differently.
+
+        To fix this during training, you use Batch Normalization. Every layer (not just the input) normalizes its inputs to maintain a 
+        stable mean and variance. This helps:
+            Reduce internal covariate shift (the shift of intermediate layer inputs across batches)
+            Speed up convergence
+            Make the training more robust to input scale changes
+
+        Even if the incoming test images differ slightly in pixel intensity, the learned gamma and beta (scale and shift parameters in BatchNorm)
+         help adapt and maintain performance.
+
+    NOTE:
+        In Batch Normalization, noise is implicitly introduced because the normalization is based on the statistics of each mini-batch, not the entire dataset.
+        Specifically, for each batch, we compute the mean μ = (1/m) ∑ xi and variance σ² = (1/m) ∑ (xi − μ)², where m is the batch size. These values 
+        fluctuate from batch to batch, introducing randomness into the normalized outputs:
+            x_norm = (xi − μ) / √(σ² + ε).
+
+        This stochasticity causes the same input xi to be normalized slightly differently in different batches, injecting noise into the learning process.
+        This variability acts as a form of regularization, similar to dropout. It discourages the network from becoming overly reliant on 
+        specific activation patterns, thereby promoting generalization. During inference, we remove this noise by using running averages of μ and σ², 
+        ensuring deterministic behavior. Thus, Batch Norm both stabilizes training and regularizes the network — all through these noisy, 
+        batch-dependent normalization steps.
+
+        Finally, BatchNorm does add noise that helps with generalization, but it's mainly used for training speed and stability, not as a go-to regularizer. 
+        That's why it’s not conventionally categorized alongside dropout or L2.
+
+    Batch Norm at test time:    
+        Batch Normalization at test time works differently than during training. While training uses the mean and variance of the current 
+        mini-batch to normalize inputs, at test time these batch-dependent statistics are not reliable because test examples can come 
+        individually or in varying batch sizes. Instead, BatchNorm uses the running averages of the mean and variance computed during 
+        training to normalize inputs. These running averages are updated during training with a momentum term, capturing the overall data 
+        distribution. 
+        
+        The normalization formula at test time is:
+            x_norm = (x - running_mean) / sqrt(running_var + epsilon)
+            x_out = gamma * x_norm + beta
+
+        Here, running_mean and running_var are fixed statistics accumulated over training, ensuring stable and deterministic normalization. Gamma and beta 
+        remain learnable parameters that scale and shift the normalized inputs. Using fixed running averages at test time guarantees consistent 
+        performance and prevents the noise introduced by batch statistics, which is only beneficial during training.
+
+Multi-class Classification:
+    In machine learning, multi-class classification refers to problems where the goal is to classify input data into one of three or more possible categories. 
+    Unlike binary classification (which chooses between two classes), multi-class handles multiple mutually exclusive classes. For example, classifying 
+    an image as either a cat, dog, or horse. Each input is assigned to one class only. To model this, we need an output that gives a probability
+    distribution over all classes. This is where Softmax Regression comes in.
+
+    Softmax Regression:
+        Softmax Regression is an extension of logistic regression to multi-class problems. It models the probability that an input x belongs to a 
+        class k out of K total classes. Instead of outputting a single probability (as in binary logistic regression), it outputs a K-dimensional 
+        vector of probabilities, all summing to 1. The model computes a score for each class, then converts these scores to probabilities using 
+        the softmax function.
+
+    Softmax Function:
+        Given a vector of logits z = [z₁, z₂, ..., z_K] (raw class scores), softmax transforms them into probabilities:
+        softmax(z_k) = exp(z_k) / sum(exp(z_j))   for j = 1 to K
+
+        This ensures:
+            All values are positive.
+            All probabilities add up to 1.
+
+    Example:
+        Suppose we want to classify emails into three categories: Spam, Social, Primary.
+        We compute scores:
+            z₁ = w₁·x + b₁  → Spam
+            z₂ = w₂·x + b₂  → Social
+            z₃ = w₃·x + b₃  → Primary
+        These raw scores are converted to probabilities using softmax:
+            P(Spam) = exp(z₁) / (exp(z₁) + exp(z₂) + exp(z₃))
+            P(Social) = exp(z₂) / (exp(z₁) + exp(z₂) + exp(z₃))
+            P(Primary) = exp(z₃) / (exp(z₁) + exp(z₂) + exp(z₃))
+        We then pick the class with the highest probability.
+
+    Derivation of Softmax Regression:
+        We start with linear functions for each class:
+            z_k = w_k·x + b_k   for k in [1, 2, ..., K]
+        We want to estimate P(y=k | x), the probability that input x belongs to class k.
+
+    Using softmax:
+        P(y=k | x) = exp(z_k) / sum_j(exp(z_j))
+                = exp(w_k·x + b_k) / sum_j(exp(w_j·x + b_j))
+        This gives the output layer of our softmax regression model.
+
+    Loss Function (Cross-Entropy):
+        To train the model, we use cross-entropy loss, which compares the predicted probability distribution to the true one-hot label.
+        Let y be the true class label (one-hot), then:
+            Loss = - sum_k(y_k * log(P(y=k | x)))
+        Only one y_k is 1 (the true class), so:
+            Loss = -log(P(y=correct class | x))
+            
+        This loss is minimized using gradient descent.
+
+    Summary:
+        Multi-class classification handles more than 2 classes.
+        Softmax Regression is the model used for this.
+        It uses linear scores + softmax to get class probabilities.
+        Trained using cross-entropy loss and gradient descent.
+

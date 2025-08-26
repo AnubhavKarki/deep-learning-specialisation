@@ -1,0 +1,519 @@
+Course 4: Convolutional Neural Networks
+
+Computer Vision:
+    Computer Vision is a dynamic and rapidly growing field within deep learning that enables machines to "see" and interpret the visual world. 
+    By using neural networks—especially convolutional neural networks (CNNs)—models can identify objects, recognize faces, detect anomalies, and 
+    even guide autonomous vehicles. The fusion of vision and AI has transformed industries from healthcare and security to retail and transportation.
+
+    While traditional neural networks can technically process images, they quickly become inefficient and impractical due to the sheer size and dimensionality
+    of image data. This is where convolutional networks become essential.
+
+    Problem Statement: Why Fully Connected Layers Fail for Image Inputs
+        Let’s consider a single 1000×1000 RGB image.
+        This image has 1000 × 1000 × 3 = 3 million pixels (or input features).
+        If we feed this image directly into a fully connected layer with just 1000 neurons,
+        Each neuron would require 3 million weights,
+        Leading to 3 million × 1000 = 3 billion parameters.
+        That’s an enormous number of parameters for a single layer.
+
+        With this many parameters, three major issues arise:
+            Overfitting: The model becomes so complex it memorizes training data rather than generalizing from it.
+            Computational Cost: Training becomes extremely slow and resource-intensive.
+            Data Scarcity: We rarely have enough labeled images to effectively train a model with billions of parameters.
+
+Convolution Operation:
+    Edge Detection:
+        In CNNs, the early layers often focus on detecting edges—the most fundamental patterns in an image. Why? Because edges define object boundaries
+        and contain crucial structural information. These patterns act as building blocks for recognizing more complex features in deeper layers
+        (like textures, shapes, and full objects).
+
+    Why Edge Detection?
+        Edges are where pixel intensity changes drastically, such as from dark to bright or vice versa. By detecting these changes, the model 
+        learns how to distinguish boundaries and structures in images—an essential step before understanding what those structures represent.
+    
+    What is a Filter?
+        A filter (also called a kernel) is a small matrix (commonly 3×3 or 5×5) that slides over an image to extract specific features. 
+        It performs an element-wise multiplication with a sub-section of the image (called a patch) and sums the result into a single value.
+        We apply this operation at each location as the filter moves, producing a feature map—a new matrix showing where that specific 
+        pattern (like an edge) occurs in the image.
+
+    Why This Vertical Edge Filter?
+        The vertical edge filter is designed to highlight changes in pixel values from left to right across an image.
+        Vertical Filter:
+          [ [ 1,  0, -1],
+            [ 1,  0, -1],
+            [ 1,  0, -1] ]
+
+        This filter compares pixel intensity on the left side of a patch (multiplied by +1) to the right side (multiplied by -1).
+        If there's a large change—say from dark to bright—it will output a high value, indicating a vertical edge. If both sides are similar, 
+        the output is close to zero.
+        The middle column is ignored to find the contrast between the leftmost and right most columns.
+
+    Why This Horizontal Edge Filter?
+        Similarly, the horizontal filter detects changes from top to bottom of a patch.
+        Horizontal Filter:
+          [ [ 1,  1,  1],
+            [ 0,  0,  0],
+            [-1, -1, -1] ]
+
+        Here, the top row is positively weighted (+1), the bottom row is negatively weighted (-1), and the middle row is ignored (0). 
+        It highlights transitions in intensity vertically—ideal for capturing horizontal edges like lines or borders between layers in an image.
+    
+    How Programming Frameworks Implement Convolution
+        Most DL libraries provide functions to apply filters efficiently:
+            TensorFlow (Low-level): tf.nn.conv2d(input, filters, strides, padding)
+            TensorFlow (Keras): tf.keras.layers.Conv2D(filters, kernel_size, strides, padding)
+            PyTorch: torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+
+        These frameworks automatically handle the sliding of filters, summing, and output generation.
+
+    Example: Full Convolution on a 6×6×1 Image
+        Let’s take a 6×6 grayscale image (1 channel):
+
+        Input Image (I):
+          [ [3, 0, 1, 2, 7, 4],
+            [1, 5, 8, 9, 3, 1],
+            [2, 7, 2, 5, 1, 3],
+            [0, 1, 3, 1, 7, 8],
+            [4, 2, 1, 6, 2, 8],
+            [2, 4, 5, 2, 3, 9] ]
+
+        Use the vertical edge filter (K):
+          [ [1, 0, -1],
+            [1, 0, -1],
+            [1, 0, -1] ]
+
+        How Convolution Works (Stride = 1, No Padding):
+            We slide the 3×3 filter over the image. Each step involves:
+                Taking a 3×3 patch from the image.
+                Multiplying it element-wise with the filter.
+                Summing the result to get a single value.
+                Repeat across the image, shifting 1 step to the right until the row ends, then move 1 step down and start again.
+
+        Since:
+            Image = 6×6
+            Filter = 3×3
+            Stride = 1
+            Padding = 0 (valid)
+            → Output size = (6 - 3 + 1) × (6 - 3 + 1) = 4×4
+
+        Step-by-Step Example (First Few Outputs):
+            Top-left 3×3 patch:
+                  [ [3, 0, 1],
+                    [1, 5, 8],
+                    [2, 7, 2] ]
+
+            Apply vertical filter:
+                = (3×1 + 0×0 + 1×-1) + (1×1 + 5×0 + 8×-1) + (2×1 + 7×0 + 2×-1)
+                = (3 - 1) + (1 - 8) + (2 - 2)
+                = 2 - 7 + 0 = -5
+
+            Move one step right:
+                  [ [0, 1, 2],
+                    [5, 8, 9],
+                    [7, 2, 5] ]
+            Apply filter → Output: -6
+            Continue this process.
+
+            Final Output: 4×4 Matrix (Feature Map)
+              [ [-5, -6,  2,  4],
+                [-2, -4,  1,  2],
+                [ 2, -1, -1,  4],
+                [ 4,  3, -2, -6] ]
+            Each value represents how strongly a vertical edge was detected in that region of the image.
+
+        Summary:
+            Filters are handcrafted patterns that detect features like edges.
+            Vertical and horizontal filters emphasize left-right or top-bottom differences.
+            CNNs use filters to efficiently extract patterns without full connection to all pixels.
+            DL frameworks abstract away these operations, but understanding the math gives you full control.
+
+    Other Common Filters: Sobel, Scharr & Learnable Kernels
+        Predefined Filters: Sobel & Scharr
+        While the vertical and horizontal filters we previously used are simple edge detectors, there are more sophisticated variants that 
+        improve edge quality, especially under noise.
+
+        1. Sobel Filters
+            Sobel filters introduce a smoothing effect by giving more weight to the center pixels. They reduce the impact of noise while still detecting edges.
+
+            Sobel-X (vertical edges):
+              [ [ 1,  0, -1],
+                [ 2,  0, -2],
+                [ 1,  0, -1] ]
+
+            Sobel-Y (horizontal edges):
+              [ [ 1,  2,  1],
+                [ 0,  0,  0],
+                [-1, -2, -1] ]
+
+            Notice how the middle row/column is given double the weight — this emphasizes edges while smoothing neighboring values.
+
+        2. Scharr Filters
+            Scharr filters are an improvement over Sobel, particularly for gradient magnitude accuracy. They’re often used in high-precision edge 
+            detection applications.
+
+            Scharr-X:
+              [ [ 3,  0, -3],
+                [10,  0, -10],
+                [ 3,  0, -3] ]
+
+            Scharr-Y:
+              [ [ 3, 10,  3],
+                [ 0,  0,  0],
+                [-3, -10, -3] ]
+
+            They exaggerate intensity changes even more than Sobel, making them more responsive to steep gradients.
+
+        Learnable Filters in CNNs:
+            In real-world CNNs, filters are not manually defined like Sobel or Scharr — they’re learned during training.
+
+            A typical 3×3 filter has 9 weights (plus a bias), and during backpropagation, the network automatically updates these weights to detect useful 
+            patterns from the data.
+
+        Example:
+            Filter:
+              [ [w1, w2, w3],
+                [w4, w5, w6],
+                [w7, w8, w9] ] + bias
+            Initially, weights are random.
+
+        As training progresses, the filter evolves to detect edges, curves, textures, or specific features depending on its location in the network.
+
+        Key Points:
+            Predefined filters (like Sobel/Scharr) are great for understanding edge detection.
+            But in CNNs, filters are trainable and adapted automatically to solve the specific task (e.g., face recognition, object detection).
+            A Conv2D layer with filters=32 will learn 32 different 3×3 filters, each specialized to find unique features in the input image.
+
+    Padding in Convolutional Neural Networks
+        Why Padding is Necessary
+            When we apply a filter over an image, the output becomes smaller than the input. This happens because the filter can’t "fully" slide over 
+            the borders — it only fits inside the image.
+
+        Let’s define:
+            Input size = n × n
+            Filter size = f × f
+            Padding = p
+
+        The output size is calculated as:
+            Output size = (n + 2p - f)
+
+        Loss of Information Without Padding:
+            Suppose we have a 6×6 image and apply a 3×3 filter with no padding:
+                Output = 6 - 3 + 1 = 4 → a 4×4 output
+                This means we lose one pixel on each side. Every time we apply another convolution, the image keeps shrinking.
+
+        Problem with this:
+            Pixels in the corners and edges get seen only once, while central pixels get seen multiple times.
+            The network learns less from boundary information — which might contain key features.
+            As the image shrinks in deeper layers, we’re left with very few values to work with — leading to overfitting and poor generalization.
+    
+        What is Padding?
+            Padding means adding extra pixels (usually zeros) around the border of the image so the filter can be applied to the edges and corners properly.
+            Example: If you pad a 6×6 image with 1 pixel on each side, it becomes 8×8.
+
+            Then with a 3×3 filter:
+                Output = (8 - 3) + 1 = 6 → back to 6×6
+
+            This way:
+                All pixels, including corners and edges, are treated equally.
+                No shrinking happens — we preserve spatial dimensions for deeper layers.
+                The model can learn deeper hierarchies without losing input resolution.
+        
+        Types of Padding
+            1. Valid Convolution ("no padding")
+                Padding p = 0
+                Output shrinks with each convolution
+                Called “valid” because only valid parts of the image are used
+
+            2. Same Convolution ("same padding"): Padding is set so that input size = output size
+                Formula becomes:
+                    p = (f - 1)
+                Requires f to be odd, which leads to...
+
+        Why Filter Size (f) is Usually Odd:
+            Using odd-sized filters (like 3×3, 5×5):
+            Allows for symmetrical padding (equal on both sides)
+            Has a clear center pixel, which the filter can align with each input patch
+            Makes implementation and architecture cleaner and more balanced
+
+    Strided Convolutions
+        What is Stride?
+            Stride is the number of pixels the convolution filter moves each time it slides across the input image.
+            For example, if the stride is 1, the filter moves one pixel at a time to the right until it reaches the edge, then moves down one pixel and repeats.
+            If the stride is 2, the filter moves two pixels at a time, effectively skipping every other pixel. This results in a smaller output because fewer 
+            positions are sampled.
+
+        How Stride Affects Output Size
+            When stride (s) and padding (p) are both considered, the output size of a convolution is given by the formula:
+                output_size = floor( (n + 2p - f) / s ) + 1
+                Where:
+                    n = input size (height or width)
+                    f = filter size
+                    p = padding
+                    s = stride
+
+            The floor() function means we round down to the nearest integer because partial steps where the filter would extend beyond the input are 
+            not considered valid positions.
+
+        Why Use floor()?
+            The filter must completely overlap a portion of the input to compute a valid convolution output.
+            If (n + 2p - f) is not perfectly divisible by s, the last partial step would mean the filter partially extends beyond the input boundaries. 
+            Since that’s invalid, we ignore it.
+            Hence, we take the floor, effectively discarding incomplete overlaps.
+
+        NOTE: The floor() function in the output size formula ensures we only count positions where the filter fully fits inside the input. 
+              For example, if the filter moves in strides of 2 over a 6-pixel input with a 3-pixel filter, the filter can fully cover positions 0 and 2, 
+              but not position 4, because that would exceed the input boundary. Since partial overlaps aren’t valid in convolution, we round down any fractional 
+              positions, ignoring incomplete steps. This guarantees that the output size reflects only valid, complete applications of the filter.
+
+Convolutions Over Volumes:
+    Why Convolve Over Volumes?
+        In real-world images, we don’t just have 2D grayscale data — we usually deal with RGB images. An RGB image has 3 channels stacked together: Red, 
+        Green, and Blue. You can think of them as 3 separate 2D layers (or “slices”) forming a 3D volume.
+        So instead of a 6×6 image, we now have a 6×6×3 volume — one 6×6 matrix for each color channel. To process this kind of data, we need 3D filters 
+        that also have depth — they must match the number of channels in the input volume.
+    
+    Why Do We Need 3D Filters?
+        When applying a filter to a volume, the filter must have the same depth as the input. For an RGB image (depth = 3), the filter must also have 
+        depth = 3. So instead of one 3×3 filter, we now need three 3×3 filters, one for each color channel. These filters together form a single 3D filter
+        of shape 3×3×3. The output is still 2D (a single number per filter location), but it is calculated across all depth slices at once.
+    
+    Matrix Operation: Step-by-Step Example
+        Assume:
+            Input image shape: 4×4×3
+            Filter shape: 2×2×3
+            Stride = 1
+            Padding = 0
+
+        Let’s visualize a tiny portion.
+
+        Input (top-left 2×2×3 patch):
+            Red (R):     Green (G):   Blue (B):
+            [1 2]        [0 1]        [2 1]
+            [0 1]        [1 2]        [0 1]
+
+        Filter (2×2×3):
+            FR: [1 -1]   FG: [0  1]   FB: [1  0]
+                [0  1]        [-1 0]       [0 -1]
+
+        Step 1: Place filter on top-left of the image volume
+            Multiply corresponding values for each channel:
+
+            Red: 1×1 + 2×(-1) + 0×0 + 1×1 = 1 - 2 + 0 + 1 = 0
+            Green: 0×0 + 1×1 + 1×(-1) + 2×0 = 0 + 1 - 1 + 0 = 0
+            Blue: 2×1 + 1×0 + 0×0 + 1×(-1) = 2 + 0 + 0 - 1 = 1
+
+        Sum across all channels: 0 + 0 + 1 = 1 → This is the first output value.
+
+        Now Slide the Filter Right (Stride = 1):
+            Move the filter one step right → take next 2×2×3 block
+            Repeat the same operation: multiply each corresponding number in the patch and filter, sum across all 3 channels.
+
+            Continue this:
+                Left to right across the row
+                Then move down one step and repeat
+                Until the whole image is covered
+
+            Because:
+                Input = 4×4
+                Filter = 2×2
+                Stride = 1
+                Padding = 0
+
+            → Output = (4 - 2 + 1) × (4 - 2 + 1) = 3×3
+
+        Each value in the 3×3 output map is computed by applying the filter to one 2×2×3 chunk of the input.
+
+    Different Types of Filters:
+        Sometimes, we design filters to operate more heavily on one channel:
+        Example: A filter that detects red edges might have weights in the red slice and zeros in green and blue.
+        Alternatively, we can use shared filters across all channels — like applying the same edge detection to R, G, and B. That way, we detect an 
+        edge regardless of which channel contains it.
+        This flexibility allows CNNs to learn both channel-specific and cross-channel features.
+
+    Multiple Filters:
+        If we use more than one filter — say, one for vertical edges and another for horizontal — we get multiple output feature maps.
+        Each filter outputs one 2D matrix. These outputs are stacked to form a 3D volume — one channel per filter.
+
+        So if we apply k filters, the output shape becomes:
+            (n - f + 1) × (n - f + 1) × k
+            Where:
+                n = input width/height
+                f = filter size
+                k = number of filters
+
+        Formula Summary:
+            Input shape:        n × n × x  
+            Filter shape:       f × f × x  
+            Output shape:       (n - f + 1) × (n - f + 1) × number_of_filters
+
+        Note on Terminology:
+            In deep learning literature, “channels” and “depth” are used interchangeably.
+            So an image with 3 channels = an image with depth = 3.
+
+    One Layer of a Convolutional Neural Network:
+        Let’s say we have a 6×6×3 RGB image — this is our input volume.
+            That means:
+                Height = 6
+                Width = 6
+                Depth = 3 (one channel each for Red, Green, Blue)
+
+        We apply a 3×3×3 filter — the depth of the filter (3) must match the depth of the image (3), so it can cover one patch across all channels at once.
+        Let’s assume we’re using two such filters (Filter 1 and Filter 2), so this layer will produce two 2D feature maps.
+
+        Step 1: Apply the Filter
+            Each 3×3×3 filter slides across the image (stride 1, no padding).
+            At each position, it takes a 3×3×3 cube of the input and performs element-wise multiplication with the filter values.
+            Then it sums up all the 27 numbers (3×3×3 = 27).
+            This gives us one number for that location in the output.
+            The filter then moves right by 1 step, repeats the operation, and so on, until it has scanned the entire image.
+
+            Since:
+                Input size = 6
+                Filter size = 3
+                Padding = 0
+                Stride = 1
+                
+                Output size = 6 - 3 + 1 = 4
+
+            So for each filter, we get a 4×4 matrix.
+
+        Step 2: Add Bias (Broadcasting)
+            Each filter has its own bias term, say b1 for Filter 1 and b2 for Filter 2.
+            This bias is a single number, not a matrix. We add it to every element of the 4×4 output.
+
+            How does that work?
+                This is where broadcasting comes in — it means the bias (a scalar) is added to every cell of the output feature map.
+
+            For example, if Filter 1 gives:
+               [[2, 3, -1, 0],
+                [0, 1, 4, -2],
+                [5, 0, -3, 2],
+                [1, -1, 0, 3] ]
+
+                And b1 = 0.5
+
+            After bias:
+               [[2.5, 3.5, -0.5, 0.5],
+                [0.5, 1.5, 4.5, -1.5],
+                [5.5, 0.5, -2.5, 2.5],
+                [1.5, -0.5, 0.5, 3.5] ]
+            Same happens with Filter 2 and b2.
+
+        Step 3: Apply Activation Function (ReLU)
+            Now, after adding bias, we apply an activation function — most commonly ReLU (Rectified Linear Unit).
+            ReLU is simple:
+                ReLU(x) = max(0, x)
+                It replaces all negative values with zero and leaves positive values unchanged.
+
+            Using the biased output above:
+                Input to ReLU:
+                [[2.5, 3.5, -0.5, 0.5],
+                    [0.5, 1.5, 4.5, -1.5],
+                    [5.5, 0.5, -2.5, 2.5],
+                    [1.5, -0.5, 0.5, 3.5] ]
+                After ReLU:
+                [[2.5, 3.5, 0, 0.5],
+                    [0.5, 1.5, 4.5, 0],
+                    [5.5, 0.5, 0, 2.5],
+                    [1.5, 0, 0.5, 3.5] ]
+
+        Final Output of This Layer:
+            Since we had 2 filters, we end up with two 4×4 matrices after convolution, bias, and ReLU.
+            These are then stacked to form the output volume:
+                Shape = 4×4×2
+                Height = 4
+                Width = 4
+                Depth = 2 (because we used 2 filters)
+
+        This output now becomes the input to the next layer.
+    Questions:
+        1. Why do we add a bias term to each filter?
+            The bias term gives the filter the ability to shift its activation output.
+            Without a bias, the filter can only learn patterns that pass through the origin (i.e., they must produce zero output when the input is zero).
+            That’s limiting. By adding a learnable scalar bias, each filter can:
+                Learn when to activate even if the weighted sum is small or zero.
+                Adjust its sensitivity — like turning up or down the activation threshold.
+                Help the model fit data better by shifting the activation curve left or right.
+
+            In simple terms:
+                Just like in linear regression (y = wx + b), the b (bias) helps the model fit the function better. In CNNs, it helps each filter respond 
+                appropriately to certain patterns, even if the raw dot-product alone wouldn't trigger it.
+
+        2. Why is ReLU used — what’s the point of keeping only positive values?
+            ReLU is defined as:
+                ReLU(x) = max(0, x)
+            This means:
+                Positive values stay,
+                Negative values become zero.
+
+            Here’s why that’s useful:
+                Non-linearity: Without an activation like ReLU, the entire CNN would just be a linear function. ReLU introduces non-linearity, allowing 
+                               the network to learn complex patterns.
+                               
+                Sparsity: ReLU zeroes out negative activations, making the network sparse — this helps with efficiency and reduces overfitting.
+
+                No saturation: Unlike sigmoid/tanh, ReLU doesn't "flatten out" in the positive direction — it keeps passing gradient, so training is faster 
+                               and more stable.
+
+                In effect, ReLU acts like a gate, allowing only meaningful (positive) features to pass through, and suppressing irrelevant signals (negatives), 
+                which helps the model focus on features that positively correlate with certain patterns.
+
+    NOTE on CNNs:
+        Convolutional Neural Networks (CNNs) detect objects like faces by learning hierarchical patterns. Early layers use small filters to detect low-level 
+        features like edges, lines, and corners. These features are combined in deeper layers to form mid-level patterns such as eyes, noses, or mouths, and 
+        finally assembled into high-level concepts like entire faces. As the network goes deeper, the number of filters increases — starting from a few 
+        (e.g., 16 or 32) for simple patterns, to hundreds in deeper layers for complex structures. Each filter learns to activate on specific patterns 
+        during training, and more filters are needed in deeper layers to capture the wide variety of combinations and spatial arrangements. 
+        This gradual increase in filter depth, paired with spatial reduction through pooling, allows CNNs to efficiently detect complex features
+        while keeping parameters manageable.
+    
+    CNN Notation Summary
+        l = layer index
+        f^[l] = filter size (height = width = f) at layer l
+        p^[l] = padding applied at layer l
+        s^[l] = stride at layer l
+        Input to layer l = activation/output from layer l-1, denoted as A^[l-1]
+        Output of layer l = activation after convolution, denoted as A^[l]
+
+        Input volume dimensions at layer l-1:
+            Height: n_H^[l-1]
+            Width: n_W^[l-1]
+            Channels: n_C^[l-1]
+
+        Output volume dimensions at layer l:
+            Height: n_H^[l] = floor((n_H^[l-1] + 2p^[l] - f^[l]) / s^[l]) + 1
+            Width: n_W^[l] = floor((n_W^[l-1] + 2p^[l] - f^[l]) / s^[l]) + 1
+            Channels: n_C^[l] = number_of_filters_in_layer_l
+
+        Filter weight matrix shape at layer l:
+            W^[l] of shape (f^[l], f^[l], n_C^[l-1], n_C^[l])
+            (height × width × input_channels × number_of_filters)
+
+            Bias b^[l] shape: (1, 1, 1, n_C^[l]) — one bias per filter/channel, broadcasted over spatial dims
+            After convolution, activation function (ReLU, Sigmoid, Softmax, etc.) is applied element-wise to Z^[l] to get A^[l]
+
+    Pooling Layers:
+        Pooling is a technique to reduce the size of representation, speed up the computation, and also make some features that it detects more robust.
+            1. Max Pooling:
+                Take the input (let's say 4x4x3), and divide it into different regions, then in the output representation we have this 2x2 grid, which is
+                the maximum value of those regions corresponding to each element in the output.
+                It's like taking the filter size of 2, and stride of 2 as the sliding window covers 2 columns and takes the step of 2.
+
+                Intuition: We can think of the 4x4x3 input as some set of features, like the activation on some layers of the neural network. Then, the maximum
+                        value represents a distinguishable structure of that feature which could be related to a particular edge, whiskers, or eyes and so on.
+                        So, no matter wherever in the image if this feature is present then that feature gets preserved for the next layer of the network.
+                
+                One interesting fact about max pooling is that it has a set of hyperparameter (f and s) but it has no parameters to learn, meaning gradient
+                descent actually doesn't learn a thing.
+
+            2. Average Pooling:
+                Does everything same as max pooling, instead it takes the average of the regions to be preserved in the output of average pooling.
+                Mostly,max pooling is used but sometimes average pooling may prove to be better in very deep layers of the neural network.
+
+    Why convolutions?
+        The reason why the number of parameters in the ConvNet is pretty small is because of the following:
+            1. Parameter Sharing: A feature detector (such as a vertical edge detector) that's useful in one part of the image is probably useful in
+                                  another part of the image.
+        
+            2. Sparsity of Connections: In each layer, each output value depends only on a small number of inputs.

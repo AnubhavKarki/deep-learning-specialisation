@@ -1,0 +1,198 @@
+Week 4: Face Recognition and Neural Style Transfer
+
+Face Verification vs. Face Recognition:
+    Verification:
+        1. Input image, name/ID
+        2. Output whether the input image is that of the claimed person
+    
+    Recognition:
+        1. Has a database of K persons
+        2. Get an input image
+        3. Output ID if the image is any of the K persons (or "not recognized")
+
+One Shot Learning:
+    In traditional machine learning, models require many examples per class to generalize well. However, in One-Shot Learning, the goal is to 
+    correctly classify or verify an image having seen only one example of each class. This is especially useful in applications like face 
+    verification, where collecting thousands of images per person is impractical.
+
+    To achieve this, the model doesn’t learn to classify directly, but instead learns a similarity function d(img1, img2) that measures 
+    how similar two images are.
+
+    If the distance is:
+        d(img1, img2) ≤ τ → same person/object
+        d(img1, img2) > τ → different person/object
+
+Siamese Network:
+    A Siamese Network is a neural architecture used to implement this similarity function. It consists of two identical subnetworks (usually CNNs) 
+    that share weights. Each network processes one of the two input images.
+
+    Structure:
+        Two images are passed through identical CNNs → output embeddings (feature vectors)
+        These embeddings are then compared using a distance metric (usually L2 norm or cosine similarity)
+
+    Loss Function:
+        Encourages the network to learn embeddings such that:
+            Embeddings of similar images are close
+            Embeddings of different images are far apart
+
+    Why It Works:
+        Learns a general representation of "similarity" across classes
+        During inference, we don’t retrain the model — just compare embeddings of new input images to stored ones
+        Ideal for verification tasks or low-data environments
+
+    Use Case: Face Verification
+        Registering a person requires only one photo
+        For verification:
+            Compare input photo to stored photo using Siamese network
+            If embedding distance is below threshold → accept
+
+    Embedding Distance Formula in Siamese Networks
+        In a Siamese network, each image xᵢ is passed through the same neural network f(.) to get an embedding vector f(xᵢ).
+        To measure similarity, we compute the squared L2 distance:
+            d(xᵢ, xⱼ) = ||f(xᵢ) - f(xⱼ)||²
+
+        If xᵢ and xⱼ are images of the same person, we want d(xᵢ, xⱼ) to be small.
+        If they are of different people, we want the distance to be large.
+        This forms the basis of contrastive loss or triplet loss, which drives the training.
+
+Triplet Loss
+    Using the simple squared distance formula d(xᵢ, xⱼ) = ||f(xᵢ) - f(xⱼ)||² to measure similarity between face embeddings can fail if the neural network 
+    learns to output the same vector (e.g., all zeros) for every input image. In this case, all distances collapse to zero, and the network doesn’t actually 
+    learn meaningful differences between faces.
+
+    To prevent this trivial solution, a margin α (alpha) is introduced, which forces the network not only to minimize distances between embeddings of the same 
+    person but also to maintain a minimum gap (margin) between embeddings of different people.
+
+    What is Triplet Loss?
+        Triplet loss compares three embeddings at once: an anchor (A), a positive (P) example (same identity as A), and a negative (N) example 
+        (different identity). The goal is to make the anchor closer to the positive than to the negative by at least the margin α. This encourages 
+        the network to learn discriminative embeddings.
+
+        Example:
+            Anchor image A: a picture of person X
+            Positive image P: another picture of person X
+            Negative image N: a picture of person Y (different from X)
+
+    We want:
+        distance(A, P) + α < distance(A, N)
+
+    Triplet Loss Formula:
+        L = max(0, d(A, P) - d(A, N) + α)
+        d(.,.) is the squared Euclidean distance between embeddings.
+        The max() ensures that only triplets violating the margin contribute to the loss (i.e., when d(A, P) - d(A, N) + α > 0).
+        If the inequality is already satisfied (loss ≤ 0), the loss is zero—no gradient needed.
+
+    Total Cost over the Dataset:
+        If we have N triplets, total loss is:
+            Cost(J) = Σ_{i=1}^N max(0, ||f(Aᵢ) - f(Pᵢ)||² - ||f(Aᵢ) - f(Nᵢ)||² + α)
+
+    Choosing Triplets:
+        Random triplet selection can lead to many “easy” triplets where the margin condition is already satisfied, providing little learning signal.
+        Hard triplet mining involves selecting triplets where the negative is closer to the anchor than the positive (or close), 
+        forcing the network to improve.
+        Proper triplet selection is key to effective training and faster convergence.
+
+Face Verification and Binary Classification:
+    In face verification, the goal is to decide whether two input images belong to the same person or not—a binary classification problem.
+    A Siamese network can be trained to learn a feature embedding for each image, and then compute a similarity or distance metric between 
+    the two embeddings. The network’s parameters are learned so that similar faces have embeddings close together, and different faces are 
+    far apart. To make a final binary decision, the computed similarity or distance is fed into a sigmoid activation function, which outputs a 
+    probability between 0 and 1 indicating whether the faces match.
+
+    The predicted output ŷ can be expressed as:
+        ŷ = sigmoid( Σ_{i=1}^{128} w_i * d_i + b )
+
+    where d_i represents the distance between the corresponding features of the two embeddings, w_i are learned weights, and b is a bias term.
+
+    Alternatively, the distance measure can be replaced by the chi-squared similarity, which is defined as:
+        χ²(x, y) = Σ_{i=1}^{n} ( (x_i - y_i)² ) / (x_i + y_i + ε)
+
+    Y-hat becomes:
+        ŷ = sigmoid( Σ_{i=1}^{128} w_i * χ²_i + b )
+
+    Here, x_i and y_i are feature components of the embeddings, and ε is a small constant to avoid division by zero. Chi-squared similarity 
+    effectively measures the normalized difference between features, emphasizing relative differences rather than absolute magnitudes. It is
+    particularly suitable for comparing histograms or feature distributions, making it robust for face verification where feature vectors may 
+    have varying scales.
+
+    This chi-squared similarity can replace d_i in the previous formula to provide a more sensitive similarity measure before the sigmoid activation.
+
+Neural Style Transfer:
+    Content and Style:
+        NST creates a new image (generated image G) by combining the content of one image and the style of another. Content captures the overall structure 
+        and objects in the image, while style represents textures, colors, and patterns. The goal is to produce an image that retains the original content 
+        but adopts the style's artistic features.
+
+    How Deep ConvNets Learn:
+        Early layers learn low-level features like edges, colors, and simple textures.
+        Middle layers capture more complex patterns such as shapes and arrangements.
+        Deeper layers extract high-level features like objects and their spatial relationships.
+        NST leverages this hierarchy to separate content (from deeper layers) and style (from multiple layers, especially earlier ones).
+
+    NST Cost Function:
+        The total cost combines content cost and style cost:
+            J(G) = α * J_content(C, G) + β * J_style(S, G)
+            Where:
+                α (alpha) weights the importance of content preservation.
+                β (beta) weights the importance of style transfer.
+                
+            Balancing α and β controls how much the generated image resembles content vs. style.
+
+    Steps for Generating Image G:
+        Initialize G randomly (or as a copy of content image).
+        Use gradient descent to minimize J(G) with respect to G.
+        Repeat optimization until convergence (image G visually combines content and style).
+
+    Content Cost Function:
+        Measures the difference between the feature representations of the content image (C) and generated image (G) at a chosen layer l in the ConvNet.
+            J_content(C, G) = (1 / (2 * n_H * n_W * n_C)) * Σ_i Σ_j (a_ij^(l)(G) - a_ij^(l)(C))^2
+            
+            Where:
+                a_ij^(l)(G) is the activation of the generated image at position (i,j) in layer l
+                a_ij^(l)(C) is the activation of the content image at position (i,j) in layer l
+                n_H, n_W, n_C are height, width, and number of channels of the layer activations
+                This ensures the generated image G preserves the content structure of C.
+
+    Style Cost Function:
+        The style cost function measures how similar the "style" of a generated image G is to the style of a reference style image S. Style here means 
+        textures, patterns, and colors, rather than the exact content.
+
+        How do we represent style?
+            Style is captured by looking at correlations between different feature channels in a convolutional layer of a neural network. 
+            These correlations show which features tend to appear together, reflecting textures and patterns.
+
+        Gram Matrix (Style Matrix):
+            Given a convolutional layer activation tensor a[l] of shape (n_h, n_w, n_c) for layer l:
+                n_h = height
+                n_w = width
+                n_c = number of channels
+
+            We reshape the activations into a matrix of shape (n_c, n_h * n_w), where each row corresponds to one channel’s activations flattened.
+
+            The Gram matrix G[l] is an n_c x n_c matrix computed as:
+                G[l] = a[l] * a[l]^T
+
+        More explicitly, each element of G[l] is:
+            G[l]_(k, k') = sum over i and j of (a[l]_(i, j, k) * a[l]_(i, j, k'))
+            This measures the correlation between channels k and k'.
+
+        Style Cost at Layer l:
+            To measure style difference between the style image S and generated image G at layer l, we compute the squared Frobenius norm 
+            (sum of squared differences) between their Gram matrices:
+                J_style^(l)(S, G) = (1 / (4 * (n_c)^2 * (n_h * n_w)^2)) * sum over k,k' of (G[l]_S(k,k') - G[l]_G(k,k'))^2
+
+            The denominator normalizes the value for size differences.
+
+        Total Style Cost:
+            The total style cost sums over multiple layers L to capture style at different abstraction levels:
+                J_style(S, G) = sum over l in L of λ_l * J_style^(l)(S, G)
+
+            λ_l are weights controlling how much each layer contributes.
+
+        Summary:
+            The style cost compares how feature correlations differ between S and G.
+            By minimizing this cost, the generated image G learns to replicate the style patterns of S.
+            Using Gram matrices captures style as spatial correlations independent of exact location.
+
+    1D and 3D Generalizations:
+        

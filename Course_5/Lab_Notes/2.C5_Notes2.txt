@@ -1,0 +1,607 @@
+Note 2: Sequence Models
+
+Bidirectional RNNs:
+    A standard RNN processes a sequence in one direction (usually left → right), so predictions at time step t only have access to past context 
+    (x<1> to x<t>). A Bi-directional RNN processes the sequence in both directions, maintaining two separate hidden states:
+        Forward pass: captures past → future dependencies.
+        Backward pass: captures future → past dependencies.
+    This allows the network to incorporate both past and future context when making predictions.
+
+    Formulas:
+        Forward RNN:
+            a_f<t> = g(Wa_f * a_f<t-1> + Wx_f * x<t> + b_f)
+            y_f<t> = softmax(Wy_f * a_f<t> + by_f)
+
+        Backward RNN:
+            a_b<t> = g(Wa_b * a_b<t+1> + Wx_b * x<t> + b_b)
+            y_b<t> = softmax(Wy_b * a_b<t> + by_b)
+
+        Combining:
+            a<t> = [a_f<t> ; a_b<t>]   # Concatenate forward & backward states
+            y<t> = softmax(Wy * a<t> + by)
+
+    Example — Context resolution:
+        He said, "Teddy Roosevelt was a good President."
+        In a forward RNN, when processing "Teddy", the model hasn’t yet seen "President", so it may not be confident that "Teddy" is a person’s name.
+        In a BiRNN, the backward RNN (right → left) already “knows” "President" comes later, so when combining forward and backward states, 
+        the model can confidently tag "Teddy" as a named entity referring to a president.
+    
+    Benefits:
+        Better context: Useful when the meaning of a word depends on both what came before and after.
+        Improved accuracy: Particularly in tagging, transcription, and sequence classification tasks.
+        General applicability: Works with vanilla RNN cells, GRU cells, or LSTM cells.
+
+    Using BiRNN with GRUs and LSTMs:
+        BiLSTM: Popular in Named Entity Recognition (NER), POS tagging, machine translation, where both long-range memory (LSTM) and 
+                bidirectional context matter.
+        BiGRU: Used in speech recognition, sentiment analysis, time-series anomaly detection, where GRUs offer efficiency but bidirectional processing 
+               boosts accuracy.
+
+    Graph structure:
+        BiRNNs form an acyclic graph over the time dimension. Forward RNN edges go t → t+1, backward RNN edges go t → t-1, but no cycles exist within 
+        each direction's computation path.
+
+    Limitation — Need complete sequence:
+        The backward RNN requires future inputs to process a timestep’s backward state.
+        This means you cannot use BiRNNs in real-time streaming where future words aren’t yet available (e.g., live translation).
+        Instead, they work in offline processing where the full sequence is known before inference.
+
+Natural Language Processing (NLP):
+    NLP is a field of artificial intelligence that focuses on enabling machines to understand, interpret, and generate human language. It connects 
+    linguistics and computer science, allowing computers to process text or speech in a meaningful way. Applications include translation, chatbots, 
+    sentiment analysis, search engines, and more.
+
+    One-Hot Representation:
+        Each word is represented as a vector with length = vocabulary size (V).
+        Example: 
+            Suppose vocabulary = ["cat", "dog", "car"].
+            "cat" = [1,0,0]
+            "dog" = [0,1,0]
+            "car" = [0,0,1]
+
+        Limitations:
+            Very sparse vectors (mostly zeros).
+            No notion of similarity between words.
+            "car" and "truck" are just as different as "car" and "banana".
+            Cannot generalize or aggregate words based on meaning.
+
+    Word Embeddings:
+        Word embeddings solve the limitations of one-hot vectors. Instead of representing each word as a sparse high-dimensional vector, we learn a 
+        dense vector (usually 50–300 dimensions) where similar words are close to each other in the vector space.
+        Each word w is represented as an embedding vector e_w ∈ R^d (d << V).
+        Word embeddings are learned from large text corpora using models such as Word2Vec, GloVe, or trained jointly in a neural network.
+        They allow words with similar meanings to have similar vector representations.
+
+        Example (simplified 2D embeddings):
+            "king" -> [0.7, 0.9]
+            "queen" -> [0.69, 0.95]
+            "man" -> [0.55, 0.80]
+            "woman" -> [0.56, 0.82]
+
+        Here, "king" and "queen" are close in the embedding space, and the difference between "man" and "woman" vectors is similar to the difference
+        between "king" and "queen". This captures semantic meaning.
+
+    Visualizing High-Dimensional Embeddings with t-SNE:
+        Word embeddings usually live in 50–300 dimensions, which is impossible to visualize directly. To interpret them, we use dimensionality reduction methods.
+        t-SNE (t-distributed Stochastic Neighbor Embedding):
+        A non-linear technique for reducing high-dimensional data to 2D or 3D for visualization.
+        It preserves local structure, meaning points that are close in high-dimensional space stay close in 2D.
+        Especially good for clustering embeddings (e.g., grouping fruits together, animals together).
+
+        Key Idea:
+            t-SNE defines a probability distribution over pairs of points in high-dimensional space, such that similar points have high probability 
+            of being picked. Then it defines a similar probability distribution in low-dimensional space and minimizes the difference between the 
+            two using KL divergence.
+
+        Formula / Notation:
+            Similarity in high-dimensional space:
+                p_j|i = exp(-||x_i - x_j||^2 / 2σ_i^2) / sum_{k≠i} exp(-||x_i - x_k||^2 / 2σ_i^2)
+
+                where:
+                    x_i, x_j = high-dimensional points (word embeddings)
+                    σ_i = variance of Gaussian centered at x_i
+
+                Then symmetrize:
+                    p_ij = (p_j|i + p_i|j) / 2N
+
+            Similarity in low-dimensional space (using Student-t distribution):
+                q_ij = (1 + ||y_i - y_j||^2)^(-1) / sum_{k≠l} (1 + ||y_k - y_l||^2)^(-1)
+                    where:
+                        y_i, y_j = low-dimensional representations
+
+            Objective function (minimization):
+                C = sum_{i≠j} p_ij * log(p_ij / q_ij)
+                (This is the KL divergence between P and Q distributions).
+
+        Interpretation:
+            By minimizing this cost, t-SNE ensures that points that are close in the original embedding space also appear close in the 2D visualization.
+            For example, animal words might form one cluster, fruit words another, etc.
+
+    Transfer Learning and Word Embeddings:
+        Transfer learning is a machine learning technique where knowledge gained from one task (usually trained on a large dataset) is reused or transferred
+        to another task with less data. In NLP, transfer learning through word embeddings has been extremely powerful.
+
+        Steps in Transfer Learning for Word Embeddings:
+            Learn word embeddings from a large text corpus
+            Train embeddings on massive datasets (1B–100B words).
+            Example corpora: Wikipedia, Common Crawl, Google News.
+            Models: Word2Vec, GloVe, FastText.
+            Output: Each word gets mapped to a dense vector of size d (e.g., 300).
+
+            Example:
+                Vocabulary size = 100,000 words
+                Embedding dimension = 300
+                Instead of 100,000 long one-hot vectors, we now have 100,000 x 300 embedding matrix.
+
+        Transfer embedding to new task with smaller dataset:
+            Take the pre-trained embeddings and plug them into your model.
+            Example: A sentiment analysis task with 100k words training set.
+            Advantage: Your model starts with meaningful vectors instead of random initialization.
+
+        Dimensionality reduction advantage:
+            Instead of learning 10k-dimensional sparse vectors (one-hot), we only learn 300-dimensional dense vectors.
+            Much smaller, efficient, and generalizes better.
+            Example:
+                "dog" = [0, 1, 0, …, 0] (10k-d one-hot)
+              becomes,
+                "dog" = [0.53, 0.12, -0.22, …, 0.77] (300-d embedding)
+
+        Option: Fine-tuning embeddings
+            Two strategies:
+                Freeze embeddings → keep them fixed and train only the new model layers.
+                Fine-tune embeddings → allow them to update slightly with new dataset to adapt better.
+            Fine-tuning is often used when the target domain is very different from the source domain.
+
+    Relation to Face Encoding (Face Embeddings):
+        Similar to word embeddings, face encodings map high-dimensional input (pixels of a face image) into a dense, lower-dimensional vector 
+        representation (say 128 dimensions).
+        Each face embedding captures unique features of a person’s face (e.g., eye distance, jawline structure, etc.).
+        Similar faces end up close together in embedding space.
+
+        Key Difference from Word Embeddings:
+            Face embeddings are generalizable:
+                Even if the model has never seen a specific face before, it can still compute an embedding and compare it to others.
+                Example: Face verification works by checking similarity between embeddings, not by looking up an ID in a fixed dictionary.
+
+            Word embeddings are limited by vocabulary:
+                If the model encounters a new word that was never in training vocabulary, it cannot create an embedding.
+                Instead, it outputs a special token: <UNK> (unknown).
+                This is a limitation of NLP embeddings, since the vocabulary must be predefined.
+
+        Summary:
+            Word embeddings enable transfer learning: pre-train on huge corpus, transfer to small task, fine-tune if needed.
+            Embeddings reduce dimensionality (10k → 300) and capture semantic similarity.
+            Word embeddings have vocabulary limits (<UNK>), while face embeddings are generalizable to unseen faces.
+
+    Properties of Word Embeddings:
+        One of the most fascinating properties of word embeddings is that they capture semantic relationships between words in vector space. 
+        For example, consider embeddings for "man" and "woman". If we compute the difference vector e_man - e_woman, the result tends to capture 
+        the gender dimension. In simple terms, all other semantic aspects (like human, person, etc.) cancel out, while the gender-related component remains.
+
+        Example (toy 4D space):
+            Let’s imagine simplified embeddings:
+                e_man = [0.6, 0.2, 0.1, 0.9]
+                e_woman = [0.6, 0.2, 0.1, 0.1]
+
+            Then:
+                e_man - e_woman = [0, 0, 0, 0.8]
+
+        Notice that only the last dimension (gender) remains, while the rest are zero. This shows embeddings encode certain abstract directions 
+        (like gender, tense, singular/plural).
+
+    EXAMPLE:
+        Analogy: 
+            "man is to woman as king is to ?"
+
+            The analogy task uses the same principle. We want to solve:
+                man : woman :: king : ?
+
+            Mathematically, this is:
+                e_man - e_woman ≈ e_king - e_?
+
+            Rearranging:
+                e_? ≈ e_king - e_man + e_woman
+
+            If we plug in e_queen as the candidate vector for ?, the result is very close. That means embeddings preserve analogical relationships.
+            So the model finds:
+                "man is to woman as king is to queen."
+
+    Parallelogram Idea in Embedding Space:
+        Geometrically, this analogy forms a parallelogram in the embedding space. The vector from "man" to "woman" is parallel to the vector 
+        from "king" to "queen". In high-dimensional space (e.g., 300D), this relationship is preserved as straight vector arithmetic.
+        However, when we use t-SNE to reduce embeddings to 2D for visualization, these linear relationships are not preserved. The reason is that 
+        t-SNE is non-linear — it preserves local neighborhoods (similar words cluster together), but not exact vector directions or distances. 
+        Therefore, the parallelogram structure gets lost in visualization, even though it exists in the original 300D space.
+
+    General Formula for Analogy Tasks:
+        To find the missing word w in analogy tasks, we search for the word whose embedding best satisfies the equation:
+
+        Find word w such that:
+        w = argmax_w Similarity( e_w , ( e_king - e_man + e_woman ) )
+
+        This formula is derived from the rearrangement:
+        e_woman - e_man ≈ e_? - e_king
+        => e_? ≈ e_king - e_man + e_woman
+
+        So the task is reduced to searching through the vocabulary for the embedding most similar to this target vector.
+
+    Similarity Measures in Word Embeddings:
+        Cosine Similarity:
+            Cosine similarity measures the cosine of the angle between two vectors.
+            Formula:
+                Cosine(e_a, e_b) = ( e_a · e_b ) / ( ||e_a|| * ||e_b|| )
+                Where:
+                    e_a · e_b = dot product = sum_i (a_i * b_i)
+                    ||e_a|| = sqrt(sum_i (a_i^2)) = Euclidean norm of e_a
+                    ||e_b|| = sqrt(sum_i (a_i^2)) = Euclidean norm of e_b
+
+            Intuition: It measures direction similarity, ignoring magnitude. Two vectors pointing in the same direction have cosine = 1, 
+            orthogonal vectors = 0, opposite direction = -1.
+
+            In word embeddings, cosine similarity is used because we care more about semantic direction than magnitude. For example, "king" and "queen" 
+            may have embeddings of different lengths but point in a similar direction.
+
+        Euclidean Distance:
+            Formula:
+                    d(e_a, e_b) = || e_a - e_b ||_2 = sqrt( sum_i ( (a_i - b_i)^2 ) )
+
+            It measures the straight-line distance between two embeddings in the vector space.
+
+            Problem: sensitive to magnitude scaling. Two vectors pointing in the same direction but with different lengths might appear far apart, even if 
+            semantically similar.
+
+            Final Reasoning: Cosine similarity is often preferred because it normalizes for vector length and focuses purely on direction (semantics), 
+            which is more meaningful for words.
+
+        Other Similarity Measures (less common):
+            Dot Product = e_a · e_b
+            (similar to cosine but without normalization; magnitude-dependent).
+
+            Manhattan Distance (L1 norm) = sum_i |a_i - b_i|
+            (occasionally used but less effective in high-dim embeddings).
+
+                Jaccard Similarity is more for sets, not commonly used in dense embeddings.
+
+    Embedding Matrix:
+        In NLP, the embedding matrix is the central component that stores the dense vector representations of words. Instead of using sparse one-hot 
+        vectors of size equal to the vocabulary, we maintain a matrix E where each row corresponds to the embedding of a word in the vocabulary. 
+        When we want the embedding of a particular word, we multiply the embedding matrix with that word’s one-hot vector. This process effectively 
+        acts as a "lookup table," retrieving the pre-learned embedding for that word. Using an embedding matrix drastically reduces dimensionality 
+        and enables capturing semantic relationships between words.
+
+        Example with Dimensions:
+            Suppose we have:
+                Vocabulary size = 10,000 words
+                Embedding dimension = 300
+
+            The embedding matrix E has shape:
+                E ∈ R^(300 x 10,000)
+
+            Each column corresponds to the embedding of a word.
+            So column j in E = embedding vector for word j.
+            Now, let’s consider the word "orange", which in the vocabulary is word index o_6257.
+            We represent "orange" as a one-hot vector:
+                O_6257 ∈ R^(10,000 x 1)
+
+            This vector has all zeros except a 1 at position 6257.
+
+    Matrix Multiplication to Get the Embedding:
+        Embedding lookup:
+            e_orange = E · O_6257
+
+        Dimensions:
+            E: (300 x 10,000)
+            O_6257: (10,000 x 1)
+            => Result: e_orange ∈ R^(300 x 1)
+
+        Intuition: Multiplying by a one-hot vector selects the 6257th column of E.
+        So e_orange is the 300-dimensional dense embedding vector of "orange".
+
+    Why This is Used:
+        The embedding matrix lets us efficiently map words to vectors for neural networks.
+        Instead of feeding huge one-hot vectors into models, we work with compact embeddings (300D).
+        These embeddings capture meaning and similarity, enabling downstream tasks like sentiment analysis, translation, or analogical reasoning.
+    
+    Formulas Recap with Descriptions:
+        Embedding matrix:
+            E ∈ R^(d x V)
+            d = embedding dimension (e.g., 300)
+            V = vocabulary size (e.g., 10,000)
+
+        One-hot vector for word j:
+            O_j ∈ R^(V x 1)
+            all zeros, 1 at position j
+
+        Embedding lookup:
+            e_j = E · O_j
+            e_j ∈ R^(d x 1)
+            selects column j of E
+    
+    Summary:
+        The embedding matrix is a giant lookup table where each word has a column representing its embedding. Multiplying the matrix E with the one-hot 
+        representation of a word retrieves its dense embedding vector, which is then used in neural networks for efficient and meaningful 
+        word representation.
+
+    Learning Word Embeddings
+        Learning word embeddings is the process of training a neural network to map words into dense vector space so that semantic and syntactic 
+        relationships are captured. One of the earliest and foundational approaches in NLP is predicting words from their context (or vice versa) 
+        using a shallow neural network.
+
+        Example:
+            Consider the sentence:
+                I want a glass of orange ____.
+
+            We want to predict the missing word ____. The learning process works as follows:
+                Input Representation:
+                    Each word in the vocabulary is represented as a one-hot vector.
+                    Suppose vocabulary size = V, embedding dimension = d (e.g., 300).
+                    The embedding matrix E ∈ R^(d x V) contains all word embeddings.
+
+        Lookup Embedding:
+            For the word "orange" at position j in vocabulary (say index 6257), its one-hot vector is O_6257 ∈ R^(V x 1).
+            Multiply by embedding matrix to get dense vector:
+                e_orange = E · O_6257 ∈ R^(d x 1)
+            This is repeated for each word in the input context (e.g., "I want a glass of").
+
+        Neural Network Processing:
+            Concatenate or average the embeddings from the context window to get a single feature vector.
+            Feed this vector into a shallow neural network with weights W_hidden and biases b_hidden:
+                h = f(W_hidden · x + b_hidden)
+            Then pass through an output layer (Softmax) with its own weights and biases:
+                y_hat = Softmax(W_output · h + b_output)
+            y_hat ∈ R^(V x 1) is a probability distribution over the vocabulary.
+
+            Clarification on the Concatenation or Averaging point above:
+                A context window defines which words around a target word are used to predict it. For example, with a window size of 4 in the sentence 
+                I want a glass of orange _, the context for the target _ is the four previous words: “I”, “want”, “a”, “glass”. Each word is converted 
+                to its embedding vector from the embedding matrix E, e.g., e_I, e_want, e_a, e_glass ∈ R^(d x 1), where d is the embedding 
+                dimension (commonly 300).
+
+                These embeddings are then combined into a single input vector for the network. One option is concatenation, stacking all vectors 
+                side by side to form x ∈ R^(4*d x 1), which preserves word order but results in a larger input. Another option is averaging, 
+                computing the element-wise mean of the embeddings x = (e_I + e_want + e_a + e_glass)/4 ∈ R^(d x 1), which gives a smaller input 
+                vector while capturing overall semantic meaning, though word order is ignored.
+
+        Loss Function and Training:
+            Compare predicted distribution y_hat with the true one-hot vector for the target word using cross-entropy loss:
+                Loss = - sum_i (y_true_i * log(y_hat_i))
+
+        Backpropagation updates both:
+            Embedding matrix E (so embeddings learn semantic meaning)
+            Network weights W_hidden, b_hidden, W_output, b_output
+
+        History Window:
+            Instead of using the entire sentence, we define a context window of size k.
+            Only words within this window contribute to the input features.
+            Reduces computational load and focuses the network on meaningful nearby context.
+
+        Examples of Context / Target Pairs:
+            Last 4 words as context:
+                If target = "orange", context = ["I", "want", "a", "glass"].
+                Average or concatenate embeddings of these 4 words to predict target.
+
+            Go 4 words left and right:
+                Target word is centered, context = 4 words to left + 4 words to right.
+                More context captures broader semantic meaning.
+
+            Only last 1 word:
+                Simplest case: predict next word from previous word.
+                Example: "glass" → predict "of".
+
+            Skip-Gram (Nearby 1 word):
+                Target predicts surrounding context words instead of the other way.
+                Useful when dataset is large and sparse; captures fine-grained semantic relations.
+
+        Summary:
+            The core idea is to train embeddings by predicting words given their context.
+            Embeddings are stored in E, updated via backpropagation.
+            Neural network has its own weights and biases separate from embeddings.
+            Context window size and choice (last words, symmetric, skip-gram) strongly affect the semantic information captured.
+
+        This method laid the foundation for modern embeddings like Word2Vec and GloVe.
+
+    Word2Vec:
+        Word2Vec is a seminal algorithm for learning word embeddings introduced by Mikolov et al. It maps words into a dense vector space where 
+        semantically similar words are close together. Word2Vec trains a shallow neural network to predict words from their context or vice versa. 
+        There are two main architectures: Continuous Bag-of-Words (CBOW), which predicts a target word from its context, and Skip-Gram, which predicts 
+        context words given a target word. The embeddings learned by Word2Vec capture semantic relationships and analogies, and they are highly 
+        efficient to train on large corpora.
+    
+        Skip-Grams:
+            Skip-Gram focuses on predicting the surrounding context words for a given target word. For example, consider the sentence:
+                X: I want a glass of orange juice to go along with my cereal.
+                
+                If we choose the target word orange and a context window of size 2, the context words are:
+                    Previous 2: glass, of
+                    Next 2: juice, to
+
+                The Skip-Gram model will create training pairs:
+                    (Target: orange, Context: glass)
+                    (Target: orange, Context: of)
+                    (Target: orange, Context: juice)
+                    (Target: orange, Context: to)
+
+            Skip-Gram Architecture:
+                Input Layer:
+                    Target word is represented as a one-hot vector x ∈ R^(V x 1), where V = vocabulary size.
+
+                Embedding Layer:
+                    Embedding matrix E ∈ R^(d x V) maps one-hot vectors to dense embeddings:
+                        h = E · x ∈ R^(d x 1)
+
+                Hidden Layer:
+                    Often just the embedding itself; sometimes an optional linear transformation.
+
+                Output Layer (Softmax):
+                    Predicts probabilities for each word in vocabulary being a context word:
+                        y_hat = Softmax(W_output · h + b_output) ∈ R^(V x 1)
+
+                Loss Function:
+                    Cross-entropy loss between predicted y_hat and true context word one-hot vector.
+
+            Cons and Optimizations:
+                Computation Speed:
+                    Computing Softmax over the entire vocabulary is expensive (O(V)).
+                    Solution: Hierarchical Softmax reduces complexity to O(log V) using a binary tree. Frequent words are placed closer to the
+                    root to reduce average computation.
+        
+            Choosing the Context c:
+                The context window can include both frequent and less common words.
+                Skipping extremely frequent words (like “the”, “a”) or using sub-sampling ensures embeddings aren’t dominated by very common words.
+                This balances training so that both rare and common words get meaningful updates.
+            
+        Other Model: Continuous Bag-of-Words (CBOW Variant):
+            The CBOW variant in the original paper takes multiple surrounding context words and tries to predict the middle target word.
+            Example: For the sentence segment: a glass of orange juice, the model can use context [a, glass, juice] to predict orange.
+            CBOW is usually faster than Skip-Gram on large corpora because it predicts a single word from multiple contexts instead of multiple 
+            context words from a single target.
+
+    NOTE:
+        In word embedding training, the target is the word we want to predict, and the context is the set of surrounding words. This setup is needed
+        because the model must have a prediction task to learn meaningful embeddings — otherwise, the embedding matrix would stay random. By predicting 
+        context from target (Skip-Gram) or target from context (CBOW), the model updates the embedding matrix so that words appearing in similar contexts 
+        (like “orange” and “apple”) get similar vectors. In short, context–target prediction is just the training trick, while the real goal is to learn 
+        the embedding matrix.
+
+    Negative Sampling
+        Negative sampling is an efficient alternative to the full softmax used in Word2Vec. Instead of computing probabilities over the 
+        entire vocabulary (10k–100k+ words), it reformulates the learning problem into binary classification: is this (context, target) pair 
+        real (positive) or fake (negative)?
+
+        Formulation:
+            For a context word embedding e_c ∈ R^(d x 1) and a target word embedding Θ_t ∈ R^(d x 1):
+                p(y=1 | c, t) = sigmoid( Θ_t^T e_c )
+                where:
+                    y = 1 means (c, t) is a true pair from data (positive).
+                    y = 0 means (c, t) is a fake pair (negative).
+                    sigmoid(z) = 1 / (1 + exp(-z))
+            So, instead of computing a 10k-way softmax, we only compute a binary sigmoid for each sample.
+
+    Training with Negative Sampling:
+        For each true (context, target) pair from the corpus → assign label = 1.
+        Generate k negative examples by pairing the same context with random words from the vocabulary → assign label = 0.
+        Train the classifier (sigmoid) to output 1 for positives and 0 for negatives.
+        Thus, the loss for one training sample is:
+            L = - log(sigmoid(Θ_t^T e_c)) - Σ (over k negatives) log(sigmoid(-Θ_neg^T e_c))
+        This reduces the expensive softmax into a (1 + k) term calculation per training step.
+    
+    Choice of k (number of negatives)
+        Small datasets → k = 5–20
+        Large datasets → k = 2–5
+        Larger corpora already provide many negative signals, so fewer negatives are sufficient.
+    
+    Example:
+        Sentence: I want a glass of orange juice
+        Target: "juice"
+        Context: "orange"
+
+        Forward pass:
+                Look up embedding e_orange = E o_6257
+                Compute score: Θ_juice^T e_orange
+                Apply sigmoid → probability that "orange" predicts "juice".
+        Positive sample = ("orange", "juice") → y=1
+        Negative samples = ("orange", "car", "orange", "dog", …) → y=0
+        
+    Selecting Negative Samples:
+        If we sample negatives purely by empirical frequency (based on word counts), common words like "the", "of", "and" dominate as negatives.
+        This makes training inefficient, since embeddings of rare words won’t improve much.
+
+        So, Mikolov (Word2Vec paper) proposed a heuristic sampling distribution:
+            P(w_i) = f(w_i)^(3/4) / Σ_j f(w_j)^(3/4)
+
+            where:
+                f(w_i) = frequency of word i in the corpus
+                Exponent 3/4 = chosen to reduce dominance of very frequent words while still keeping them more likely than rare words
+
+        Why it works:
+            If exponent = 1 → frequent words dominate too much (bad).
+            If exponent = 0 → all words equally likely (rare words dominate, not realistic).
+            Exponent 3/4 = sweet spot: balances common words and rare words, so embeddings of mid-frequency words improve faster.
+
+    Summary:
+        Negative Sampling reframes softmax training into binary classification of real vs fake pairs.
+        Uses sigmoid instead of softmax.
+        Greatly reduces computational cost (O(k) vs O(V), where V = vocab size).
+        Needs careful negative sampling — solved by the 3/4 power distribution heuristic.
+
+GloVe (Global Vectors for Word Representation):
+    GloVe is a word embedding model that uses global co-occurrence statistics from a corpus. Instead of just predicting nearby words like Word2Vec,
+    it builds embeddings by directly factorizing a matrix of how often words appear together. This makes the embeddings capture global structure in 
+    addition to local context.
+
+    Co-occurrence Matrix:
+        Define X_ij = number of times word j (target) appears in the context of word i (center).
+        Example:
+            Sentence: "I want a glass of orange juice."
+            If i = orange and j = juice, then X_ij counts how many times "juice" appears near "orange" in the whole corpus.
+            So, the co-occurrence matrix X is |V| x |V| in size, where |V| = vocab size.
+
+    The Model Objective:
+        GloVe minimizes the following loss:
+            J = Σ_i Σ_j f(X_ij) * ( Θ_i^T e_j + b_i + b'_j - log(X_ij) )^2
+            Notations:
+                Θ_i = word vector for word i (sometimes called "center" word vector).
+                e_j = context vector for word j.
+                b_i, b'_j = bias terms.
+                X_ij = co-occurrence count.
+                log(X_ij) = since raw counts vary a lot, log smooths the distribution.
+                f(X_ij) = weighting function that reduces the effect of very large counts and ignores very small counts.
+    
+        Explanation of formula:
+            The term (Θ_i^T e_j + b_i + b'_j) tries to approximate log(X_ij).
+            This means the dot product between word vectors + biases should encode how often two words co-occur.
+            The square ensures least-squares regression style training.
+
+    Why Weighting Function f(X_ij)?
+        If we treat all pairs equally, very frequent words like the, of, and would dominate the loss.
+        So f(x) is chosen as:
+            f(x) = { (x / xmax)^α if x < xmax 1 if x ≥ xmax }
+            with α ≈ 0.75 and xmax ≈ 100.
+
+        This downweights frequent pairs and ignores rare pairs (since they may be noisy).
+        Effect: Keeps focus on meaningful mid-frequency co-occurrences.
+
+        Avoid log(0):
+            The formula has log(X_ij).
+            If X_ij = 0, log(0) is undefined → loss blows up.
+        So f(X_ij) → 0 when X_ij = 0 (or very small), effectively removing those pairs from the loss.
+    
+    Essence of the Formula
+        The core idea behind GloVe is that the meaning of a word is captured by how frequently it co-occurs with other words, relative to 
+        all other words. Instead of just counting raw co-occurrences, GloVe focuses on ratios of probabilities, because these ratios capture 
+        semantic relationships.
+
+        For example, consider the words "ice", "steam", "solid", and "gas". Let P(a|b) denote the probability of word a appearing in the context of word b. 
+        Then:
+            P(ice | solid) / P(ice | gas)  >> 1    # ice appears more with solid than gas
+            P(steam | solid) / P(steam | gas) << 1  # steam appears more with gas than solid
+        This shows that ratios of co-occurrence probabilities encode meaning — "ice" is strongly associated with "solid" while "steam" is strongly
+        associated with "gas".
+
+        By designing the GloVe loss as:
+            J = Σ_i Σ_j f(X_ij) * ( Θ_i^T e_j + b_i + b'_j - log(X_ij) )^2
+        we are essentially trying to make the dot product between embeddings reflect these ratios. Using log(X_ij) helps compress the huge range 
+        of counts and preserves relative ratios rather than absolute counts. Hence, the embeddings capture global statistical patterns, 
+        not just local context.
+
+    Center(Target) vs Context Symmetry:
+        In GloVe, each word has two types of vector representations: one when the word is acting as the center word and one when it is acting as a 
+        context word. The center word is the word we are trying to predict or describe, while the context word is one of the words surrounding it in 
+        the text. For example, in the sentence “I want a glass of orange juice,” if the target is "orange" as the center word, words like "glass" or "juice" 
+        are context words. 
+
+        GloVe assigns a vector Θ_i to the center word and e_j to each context word. These vectors appear symmetrically in the loss function:
+            Θ_i^T e_j + b_i + b'_j - log(X_ij)
+
+        This symmetry ensures that both Θ_i and e_j capture meaningful semantic information about the word from different perspectives. 
+        After training, we combine the two to form the final word embedding:
+            E_w = (Θ_w + e_w) / 2
+
+        For instance, for the word "orange":
+            Θ_orange = [0.12, -0.08, 0.34, …]   # center vector
+            e_orange = [0.11, -0.09, 0.33, …]   # context vector
+            E_orange = (Θ_orange + e_orange)/2
+                    = [0.115, -0.085, 0.335, …]
+
+            This final vector E_orange now captures the combined semantic knowledge of how “orange” behaves both as a center word and in the 
+            context of other words, giving a more stable and meaningful representation. 

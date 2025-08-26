@@ -1,0 +1,413 @@
+Notes 3: Sequence Models
+
+Types of Sentiment Classification Models:
+    1. Simple Sentiment Classification Model
+        A basic approach for sentiment classification uses word embeddings averaged across the sentence:
+        One-hot vectors -> Embedding matrix -> e_num -> Average layer -> Softmax -> y-hat
+
+        Step-by-step explanation:
+            Each word in a sentence is first converted to a one-hot vector.
+            These vectors are multiplied with the embedding matrix E to get the corresponding word embeddings e_num.
+
+        For a sentence:
+            "Completely lacking in good taste, good service, and good ambience."
+            Even though this is a harsh review, the word "good" appears multiple times.
+            If we simply average all embeddings, the positive association of "good" might dominate, causing the model to incorrectly predict
+            a positive sentiment.
+            Limitation: This model ignores word order and context, so repeated positive words can skew results even in negative sentences.
+
+    2. RNN for Sentiment Classification
+        To address the limitations of simple averaging, we use a Recurrent Neural Network (RNN) which considers word order and context:
+        Figure:
+            a<0> -> a<1> -> a<2> -> ... -> a<10> -> Softmax -> y-hat
+            |     .    .    .       .
+            v
+            e1852
+
+        Explanation:
+            Each word is converted to an embedding (e.g., e1852).
+            These embeddings are fed sequentially into the RNN.
+            At each timestep t, the RNN maintains a hidden state a<t> that captures context from previous words.
+            After the last word, the final hidden state is passed through a softmax layer to predict the sentiment y-hat.
+
+        Advantages:
+            Takes word order into account.
+            Can differentiate sentences like:
+            "Good service, but completely lacking in taste and ambience."
+
+        Now the network can understand that "lacking" outweighs "good", giving a more accurate negative sentiment prediction.
+
+Debiasing Word Embeddings:
+    Word embeddings often capture social biases present in the training data (e.g., gender, racial, or cultural biases). Debiasing aims to reduce 
+    these unwanted associations while keeping semantic meaning intact.
+
+    1. Identify the Bias Direction:
+        Choose a set of words that define the bias (e.g., he, she, man, woman for gender).
+        Compute the bias subspace using Singular Value Decomposition (SVD).
+        This gives a vector b in embedding space representing the main axis of bias.
+
+    2. Neutralize Non-Definitional Words:
+        Words that are not inherently biased (e.g., doctor, nurse, teacher) should be neutral.
+        Project their embeddings orthogonally to the bias direction to remove bias:
+            e_word_neutral = e_word - proj_b(e_word)
+            proj_b(e_word) = (e_word · b / ||b||^2) * b
+
+    3. Equalize Pairs:
+        For words that are definitional pairs (e.g., king and queen), make them equidistant from the bias-neutral subspace while preserving their 
+        relative differences.
+        This ensures that analogies like man : woman :: king : ? still hold correctly.
+
+    Summary:
+        Debiasing involves finding the bias direction, neutralizing embeddings of words that shouldn’t carry bias, and equalizing word pairs 
+        that are definitional. It’s an elegant combination of linear algebra (SVD, projections) and geometric reasoning in embedding space.
+
+Sequence-to-Sequence (Seq2Seq) Model:
+    The Seq2Seq model is a foundational architecture for tasks such as machine translation, text summarization, and dialogue systems. 
+    The key idea is to take a sequence in one domain (e.g., a French sentence) and output a sequence in another domain (e.g., the English translation).
+    It does this through two major components: the encoder and the decoder.
+
+    Encoder:
+        The encoder is usually an RNN (LSTM or GRU). It processes the input sentence word by word, updating its hidden state at each time step. 
+        After the final word, the encoder produces a fixed-size context vector, which captures the meaning of the entire input sequence.
+        Formally, if the input sequence is:
+            (x₁, x₂, ..., x_Tx)
+        The encoder computes hidden states:
+            h_t = f(h_{t-1}, x_t)
+        After the last input word x_Tx, the final hidden state h_Tx is taken as the encoded vector representation.
+    
+    Decoder:
+        The decoder is also an RNN (LSTM/GRU) that generates the output sequence one word at a time. It takes the encoder’s final hidden state 
+        (context vector) as its initial state. At each step, the decoder outputs a word, and this output is fed back into the decoder at the next step.
+        Formally, if the target sequence is (y₁, y₂, ..., y_Ty):
+            s_t = f(s_{t-1}, y_{t-1}, context)
+            y_t = softmax(W * s_t + b)
+        where s_t is the hidden state of the decoder at step t.
+
+ASCII Diagram:
+Input (French):   x1 ---> x2 ---> x3 ---> ... ---> x_Tx
+                  |      |      |              |
+Encoder RNN:      h1 ---> h2 ---> h3 ---> ... ---> h_Tx
+                                |
+                          Context vector
+                                |
+Decoder RNN:      s1 ---> s2 ---> s3 ---> ... ---> s_Ty
+                  |      |      |              |
+Output (English): y1 ---> y2 ---> y3 ---> ... ---> y_Ty
+
+    Example:
+        Input: "Je suis étudiant" (French)
+        Encoder processes word by word → produces context vector.
+        Decoder takes context vector → generates output: "I am a student".
+
+        Picking the Most Likely Sequence:
+            The model assigns probabilities to each possible output sequence.
+                P(y₁, y₂, ..., y_Ty | x₁, ..., x_Tx)
+                = ∏ P(y_t | y₁, ..., y_{t-1}, context)
+
+            The goal is to find:
+                y* = argmax_y P(y | x)
+
+    Why Not Greedy Search?
+        Greedy search picks the most probable word at each step.
+        This may lead to suboptimal sequences because a locally best word does not guarantee the globally best translation.
+        Example:
+            Input: "Il fait froid."
+            Greedy might output: "It is coldly."
+            But the correct translation should be: "It is cold."
+
+    Beam Search:
+        Beam search is a heuristic search algorithm used in sequence generation tasks (like machine translation). Instead of always 
+        picking the most probable word at each step (like greedy search), beam search explores multiple possibilities simultaneously 
+        and chooses the sequence with the highest probability overall.
+        Key Idea:
+            At each decoding step, the model assigns probabilities to possible next words.
+            Instead of keeping only the single best option (greedy), beam search keeps the top B sequences (where B = beam width).
+            This way, it balances exploration (checking multiple paths) and exploitation (choosing high probability words).
+            If B = 1, beam search reduces to greedy search.
+    
+        Step 1: Setup
+            Input sentence (French):
+                Jane visique Afrike en Septembre
+                Vocabulary (simplified for example): {Jane, visited, Africa, in, September, went, to, holiday, ...}
+            Beam width (B): the number of partial sequences kept at each decoding step.
+                Example:
+                    B = 1 → greedy search.
+                    B = 3 → keep the top 3 candidate translations at every step.
+            The encoder processes the input and produces a context vector. The decoder then generates output step by step.
+        
+        Step 2: First Word Prediction
+            The decoder outputs probabilities for the first word y₁ given input x:
+                P(y₁ | x)
+            Suppose the probabilities are:
+                "Jane" → 0.45
+                "She" → 0.35
+                "I" → 0.20
+                If B = 1 (greedy) → pick "Jane".
+                If B = 2 → keep ["Jane" (0.45), "She" (0.35)].
+        
+        Step 3: Second Word Prediction
+            Now, for each candidate sequence, the decoder predicts the next word.
+            We compute the joint probabilities:
+                P(y₁, y₂ | x) = P(y₁ | x) * P(y₂ | y₁, x)
+
+            Suppose probabilities:
+                For "Jane":
+                    "visited" → 0.6 → joint = 0.45 * 0.6 = 0.27
+                    "went" → 0.3 → joint = 0.45 * 0.3 = 0.135
+                    "is" → 0.1 → joint = 0.045
+
+                For "She":
+                    "visited" → 0.55 → joint = 0.35 * 0.55 = 0.1925
+                    "went" → 0.25 → joint = 0.0875
+                    "is" → 0.2 → joint = 0.07
+
+                Now, rank all candidates across both prefixes:
+                    "Jane visited" → 0.27
+                    "She visited" → 0.1925
+                    "Jane went" → 0.135
+                    "She went" → 0.0875
+                    "Jane is" → 0.045
+                    "She is" → 0.07
+                    If B = 1 → pick "Jane visited".
+                    If B = 2 → keep ["Jane visited", "She visited"].
+                
+        Step 4: Continue for Future Words
+            Repeat the same process: at each step, expand each partial sequence, compute joint probabilities, and keep only the top B sequences.
+            For example:
+                After 4 decoding steps with B = 2, we might get:
+                "Jane visited Africa in September" → 0.15
+                "She visited Africa in September" → 0.12
+                Beam search eventually outputs the highest probability sequence.
+    
+        Worked Example:
+            Input: "Jane visique Afrike en Septembre"
+            (Target English: "Jane visited Africa in September")
+
+            B = 1 (Greedy Search):
+            Step 1: "Jane" (0.45)
+            Step 2: "Jane visited" (0.27)
+            Step 3: "Jane visited Africa" (0.19)
+            Step 4: "Jane visited Africa in" (0.17)
+            Step 5: "Jane visited Africa in September" (0.15)
+            → Final output: "Jane visited Africa in September"
+
+            B = 2 (Beam Search):
+                At each step, we also keep "She visited ..." as a candidate.
+
+            But final probabilities show "Jane visited Africa in September" > "She visited Africa in September".
+                → Final output: "Jane visited Africa in September"
+        
+    Summary:
+        Greedy search only looks one step ahead and may miss better sequences.
+        Beam search with beam width B keeps the top-B candidates at every step.
+        Larger B increases the chance of finding the best translation, but also increases computation.
+        In practice, B = 5 to 10 often works well.
+    
+    Beam Search: Refinements:
+        The goal of beam search is to find the sequence y = (y₁, y₂, …, y_Ty) that maximizes:
+            Beam Search = argmax_y  ∏ (t=1 to Ty) P(y_t | y₁, …, y_{t-1}, x)  
+        
+        Numerical Underflow Issue:
+            Multiplying many probabilities (each < 1) makes the product extremely small.
+            This leads to numerical underflow (values collapse to zero on computer).
+
+            Solution: take logarithm.
+                log Beam Search = argmax_y  Σ (t=1 to Ty) log P(y_t | y₁, …, y_{t-1}, x)  
+
+            Taking log turns product into sum.
+            But note: since log(P) < 0 (because P < 1), adding more terms makes the total more negative.
+            This biases the search towards shorter sequences.
+
+        Length Normalization:
+            To reduce the short-sequence bias, we normalize by sequence length.
+                Normalized Beam Score = (1 / Ty^α) * Σ (t=1 to Ty) log P(y_t | y₁, …, y_{t-1}, x)  
+            Where,        
+                α is the normalization parameter, typically α = 0.7.
+                This means we scale the penalty by about 70% of the sequence length.
+                If α = 0 → no normalization (bias towards shorter sequences).
+                If α = 1 → full length normalization (bias towards longer sequences).
+        
+        Practical Beam Width Choices:
+            Beam width B controls how many candidate sequences we keep at each step.
+            Too small → greedy behavior, may miss the best sequence.
+            Too large → computationally expensive and often not worth it.
+            Common practice: try B = 1, 3, or 10. Rarely higher.
+        
+        Comparison with BFS / DFS
+            Beam search is more efficient than BFS or DFS in sequence generation tasks.
+            However, it is not guaranteed to find the global maximum:
+                argmax_y P(y | x)
+            Instead, it finds a good approximation within limited width B.
+            That’s the trade-off: speed vs exact optimality.
+        
+        So in summary:
+            Beam search uses log probabilities to avoid underflow.
+            Without normalization, shorter sequences dominate.
+            Length normalization with α balances short vs long sequences.
+            Beam width B is tuned (1 → 3 → 10), but not too large.
+            Faster than BFS/DFS but approximate.
+
+        Note: Beam Search is an approximate algorithm, also called a heuristic search algorithm. And so it doesn't always output the most likely sentence. 
+              It's only keeping track of the beam width = 1, 3, 10 or any other value.
+        
+        Error Analysis in Beam Search
+            When a Seq2Seq model with beam search does not perform well, it is important to identify whether the problem lies in the RNN (encoder–decoder model)
+            itself or in the beam search decoding strategy. Error analysis provides a systematic way to do this.
+
+            The process works as follows:
+                Take an input sentence and feed it into the encoder.
+                Obtain two translations:
+                    y* → the reference, human-verified correct translation.
+                    ŷ → the model’s output generated by beam search.
+                Compare their probabilities under the model.
+
+            Case 1:
+                If *P(y) > P(ŷ)**, this means the model itself actually assigns a higher probability to the correct translation y*. However, beam search still 
+                selected ŷ. In this situation, the beam search algorithm is at fault, since it failed to find the most likely sequence according to the model.
+
+            Case 2:
+                If *P(y) ≤ P(ŷ)**, this means the model itself prefers the incorrect translation ŷ over the correct one y*. In this case, the problem 
+                lies in the RNN model, not beam search. The encoder–decoder simply does not assign high enough probability to the correct sequence, so 
+                improving the training, architecture, or regularization of the Seq2Seq model is necessary.
+
+                Example:
+                    Suppose the true translation is:
+                        y*  = "Jane visits Africa in September"  
+                        ŷ   = "Jane visited Africa in September"  
+
+                    If P(y*) > P(ŷ), then beam search failed to retrieve the better option → beam search error.
+                    If P(y*) ≤ P(ŷ), then the model itself favors the wrong tense (“visited”) → model error.
+
+            This simple analysis helps us pinpoint whether we should focus on fixing the decoding algorithm (beam width, normalization, search strategy) or 
+            improving the Seq2Seq model itself (training data, architecture, loss function, embeddings, etc.).
+
+BLEU Score (Bilingual Evaluation Understudy):
+    When training Seq2Seq models for translation, summarization, or captioning, we often face a challenge: multiple translations can look convincing, 
+    so how do we decide which one is best? BLEU score is one of the earliest and still widely used automatic evaluation metrics for comparing 
+    machine-generated translations with one or more human reference translations. It does this by measuring modified precision over n-grams 
+    (contiguous sequences of words).
+
+    Modified Precision:
+        Naïve precision simply checks how many words from the candidate translation (ŷ) appear in the reference (y*). 
+        But this creates a problem: if a candidate repeats a correct word many times, it could unfairly inflate its precision. To prevent this, BLEU uses 
+                                    clipped counts.
+        Count(w): the number of times a word (or n-gram) appears in the candidate.
+        Count_clip(w): the maximum number of times that word (or n-gram) appears in any reference.
+
+        Modified Precision (pₙ):
+            pₙ = ( Σ_w∈ŷ Count_clip(w) ) / ( Σ_w∈ŷ Count(w) )
+
+        This ensures that a candidate does not get over-credited for repeating words more times than they appear in references.
+    
+    Example: BLEU with Bigrams:
+        References:
+            Ref 1: "The cat is on the mat"
+            Ref 2: "There is a cat on the mat"
+            Candidate: "The the the the the the the"
+            Candidate bigrams: "The the", "the the", "the the", ... (nonsense).
+            Valid bigrams from references: "The cat", "cat is", "is on", "on the", "the mat", etc.
+
+        Here, the clipped count ensures that repeating "the" does not inflate the score, because "the" appears at most twice consecutively in any reference.
+
+        For a more reasonable candidate like: "The cat the cat on the mat":
+            Candidate bigrams: "The cat", "cat the", "the cat", "cat on", "on the", "the mat".
+            Clipped matches with references: "The cat", "on the", "the mat", "cat on".
+            Modified precision = 4 matches out of 6 bigrams = p₂ = 4/6 ≈ 0.67.
+    
+    Example: BLEU with Unigrams:
+        Candidate: "The cat the cat on the mat"
+        Reference unigrams: {"The", "cat", "is", "on", "the", "mat"}
+        Candidate unigrams: {"The", "cat", "the", "cat", "on", "the", "mat"}
+        Count_clip ensures "cat" and "the" are only credited as often as they appear in the references.
+
+        So unigram precision:
+            p₁ = Σ Count_clip(unigram) / Σ Count(unigram) 
+            = 6 / 7 ≈ 0.86
+    
+    BLEU for n-grams (General Case):
+        To evaluate fluency and not just single words, BLEU combines precision scores for multiple n-gram levels (usually up to 4). The general formula is:
+            BLEU = BP * exp( (1/N) Σₙ log(pₙ) )
+
+        Where:
+            pₙ = modified precision for n-grams (n = 1 to N).
+            BP = brevity penalty (applied if the candidate is shorter than the reference, to discourage very short translations).
+            N = maximum n-gram size (commonly 4).
+            The log and exponential ensure we take the geometric mean instead of the arithmetic mean, which prevents a single very low precision from 
+            being hidden by high scores on other n-grams.
+    
+    Why BLEU is Useful:
+        Captures precision: it rewards candidates that overlap with reference translations in terms of words and phrases.
+        Penalizes word repetition: through clipped counts.
+        Considers fluency: by checking n-grams beyond unigrams.
+        Widely used: still one of the standard evaluation metrics for translation, despite newer metrics (e.g., METEOR, ROUGE, BERTScore, COMET).
+        However, BLEU also has limitations: it does not account for synonyms or deeper semantics (e.g., “dog” vs “canine”), and it may underrate 
+        perfectly valid translations that use different wording. Still, in practice, BLEU remains a benchmark for comparing models and guiding improvements.
+
+Attention Model:
+    One of the key problems with Seq2Seq models that rely solely on RNNs (LSTMs or GRUs) is their inability to effectively handle long input sequences. 
+    RNNs tend to "forget" earlier parts of the sequence, especially as sentences grow longer. This leads to poor performance in translation tasks where 
+    the context from the beginning of the sentence may be critical for accurate translation at the end.
+
+    When evaluated using the BLEU score, this limitation becomes clear: for short sentences, Seq2Seq models perform reasonably well, but as sentence 
+    length increases, the BLEU score curve dips sharply. This reveals that the model struggles to retain context across long dependencies.
+
+    The Attention mechanism was introduced to solve this problem. With Attention, the BLEU score curve no longer dips for longer sentences — instead, 
+    performance remains strong regardless of sequence length.
+
+    How Attention Works:
+        Instead of encoding the entire input into a single fixed-length vector, the Attention model computes a set of attention weights that allow the 
+        decoder to "look back" at specific parts of the input when predicting each word. This gives the model the ability to dynamically focus on 
+        the most relevant words in the source sentence.
+
+    Notations:
+        Let the input sentence be of length Tx and the output sentence of length Ty.
+        Encoder hidden states:
+            a<1>, a<2>, …, a<Tx>
+        Decoder hidden states:
+            s<1>, s<2>, …, s<Ty>
+
+        At decoding time step t, attention produces a context vector c<t> that is a weighted sum of encoder states.
+            c<t> = Σ (α<t,t'> * a<t'>)    for t' = 1 to Tx
+
+        Here:
+            α<t,t'> = attention weight for how much decoder at time t should attend to encoder state a<t'>.
+
+            These weights are derived from an alignment score e<t,t'>:
+                α<t,t'> = exp(e<t,t'>) / Σ_{k=1}^Tx exp(e<t,k>)   (softmax over input positions)
+
+            The alignment score is typically computed as:
+                e<t,t'> = vᵀ tanh(W₁ s<t-1> + W₂ a<t'>)
+
+            where W₁, W₂, v are learnable parameters.
+
+        Thus, each attention weight depends on the previous decoder hidden state s<t-1> and the encoder hidden state a<t'>.
+
+Figure:
+Input (French):  Jane   visite   l’Afrique   en   Septembre
+Encoder states:  a<1>   a<2>     a<3>        a<4> a<5>
+                    \      \        |         /    /
+                     \      \       |        /    /
+                      α<t,1> α<t,2> α<t,3> α<t,4> α<t,5>
+                         \    |     |     |     /
+                          ---- Weighted sum ----
+                                   |
+                              Context c<t>
+                                   |
+                              Decoder s<t>
+                                   |
+                         Output (English word)
+
+    Here, for each decoder step, the model computes attention weights α<t,t'> over all encoder states, forms a weighted sum c<t>, and then uses 
+    it to predict the next output word.
+
+    Why a Single Hidden Layer Works:
+        Notice that the alignment score e<t,t'> only needs a single feedforward hidden layer (tanh + linear). This is sufficient to capture the interaction 
+        between the current decoder state (s<t-1>) and each encoder state (a<t'>). Thus, even though the mechanism seems complex, in practice the math is 
+        relatively simple and efficient to implement.
+
+    Downsides of Attention:
+        While attention solves the problem of context loss in RNNs and drastically improves translation performance, it has a notable downside:
+        The calculation of attention weights involves comparing every decoder step t with all encoder steps Tx.
+        This requires O(Tx × Ty) operations, which means attention runs in quadratic time with respect to sequence length.
+        For very long sequences (hundreds or thousands of tokens), this becomes computationally expensive and slow.
+        This quadratic bottleneck is exactly what later led to the development of the Transformer model, which restructured attention to be more parallelizable.

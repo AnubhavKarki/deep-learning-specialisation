@@ -1,0 +1,732 @@
+Deep Learning Course 2: Improving Deep Neural Networks: Hyperparameter Tuning, Regularization, and Optimization
+
+Applied ML is a highly iterative process, that is to find the best values for our hyperparameters, like:
+    1. Number of layers
+    2. Hidden units
+    3. Learning rates
+    4. Activation Functions
+
+Train/dev/test sets:
+    The best splits for the data, generally depends on the size of the data and the diversity and so on.
+    If the data set is large enough just having a much smaller cross validation and test set would make enough sense as compared to when we have
+    a much smaller data set in whole.
+
+    EXAMPLE:
+        GOAL: Classify cat pictures among other felines.
+        If the training set comes from webpages which have high resolution and well oriented images, where as the test/dev set comes from
+        the users using the app who upload the images of their cat, then there would be a discrepancy between the distribution of the two different
+        sources of image leading to inconsistent classification.
+
+        NOTE: Make sure the development and test set come from the same distribution.
+
+    Also not having a test set might be okay (Only dev set can be enough). Because once we've fit our data to the dev set, this no longer gives us
+    an unbiased estimate of performance.
+
+Bias / Variance:
+    High Bias (Underfit):
+        Look at training set performance.
+        Solution:
+            1. Train a bigger network (Not the most efficient solution, although it may help)
+            2. Train for a longer time
+            3. Neural Network architecture
+    
+    High Variance (Overfit):
+        Look at dev set performance.
+        Solution:
+            1. Get more data (If possible)
+            2. Regularization
+            3. Find a better NN architecture
+
+Regularization:
+    A technique used to address high variance problem. There are three types of regularization:
+        1. Lasso Regularization (L1)
+        2. Ridge Regularization (L2)
+        3. Elastic Net Regularization (L1 + L2)
+    
+    How does regularization prevent overfitting?
+        If the regularization parameter is big, then the algorithm will incentivize to keep the value for the parameter 'w' so small that it is almost
+        zero. And, if a lot of parameters become zero then this deep neural network will then become a much smaller network as many of the neurons will
+        just be spitting out zero. And, doing this can take our high variance neural network to a high bias neural network. And in the process there
+        may be just a sweet spot for lambda that is just right to have a much overall balanced model.
+    
+        NOTE: What actually happens is the neurons just spit our zeros rather it spits out such a small value that it will not show any drastic effect
+        in the output of the model.
+    
+    Dropout Regularization - Note and Pseudo Code
+        What is Dropout?
+            Dropout is a regularization technique used during training to prevent overfitting.
+            It works by randomly turning off a subset of neurons during each training pass.
+            Purpose:
+                - Forces the network to not rely on specific neurons.
+                - Encourages redundancy and better generalization.
+                - Reduces co-adaptation between neurons.
+
+        How Dropout Works:
+            1. For each training batch, create a mask D where each neuron is kept with probability keep_prob.
+            2. Multiply activations A with mask D to zero out some neurons.
+            3. Divide A by keep_prob to scale up the surviving neurons (called "inverted dropout").
+            4. During testing, dropout is NOT applied (all neurons are active), and no scaling is done.
+
+        Why divide by keep_prob?
+            Because dropout reduces the expected output during training, we scale up the active neurons by 1/keep_prob so that the expected output
+            remains consistent with test time (where all neurons are used).
+
+        Pseudo Code (applied after activation, e.g., ReLU)
+            A: activation output from previous layer
+            keep_prob: probability of keeping a neuron active (e.g., 0.8 means 80% kept)
+
+            A = np.maximum(0, Z)  ReLU activation
+            D = np.random.rand(A.shape[0], A.shape[1]) < keep_prob  dropout mask
+            A = np.multiply(A, D)  apply dropout mask
+            A = A / keep_prob      scale remaining activations
+
+        During testing:
+            A = np.maximum(0, Z)  No dropout, no scaling
+
+        Notes:
+            - Dropout is only applied during training.
+            - Scaling during training (inverted dropout) avoids the need to modify anything at test time.
+            - Typical keep_prob values: 0.8 for hidden layers, 1.0 for input/output layers.
+        
+        EXAMPLE:
+            Assume we have a layer with 3 neurons and their activations after ReLU:
+                A = [10, 20, 30]
+                keep_prob = 0.5  (50% neurons kept on average)
+
+            Step 1: Create dropout mask D
+                For each neuron, generate a random number between 0 and 1
+                If the number < keep_prob (0.5), neuron is kept (1), else dropped (0)
+
+                Example random numbers:
+                    rand_vals = [0.3, 0.7, 0.1]  
+                    D = [1 if x < 0.5 else 0 for x in rand_vals];   D = [1, 0, 1]
+
+            Step 2: Apply dropout mask to activations
+                A_after_dropout = A * D
+                A_after_dropout = [10 * 1, 20 * 0, 30 * 1] = [10, 0, 30]
+
+            Step 3: Scale the remaining activations by dividing by keep_prob
+                A_scaled = A_after_dropout / keep_prob
+                A_scaled = [10 / 0.5, 0 / 0.5, 30 / 0.5] = [20, 0, 60]
+
+            Step 4: Output during training for this batch
+                Total activation output = 20 + 0 + 60 = 80
+
+            Step 5: Output during testing (no dropout, no scaling)
+                A_test = A = [10, 20, 30]
+                Total activation output = 10 + 20 + 30 = 60
+                NOTE: Even though the values don't add up, this example only shows for one particular instance of dropout, where as in a neural network,
+                      we would have many-many instances of such dropout matrix, and each producing equally unique instance and when we sum them up
+                      in the end, it comes to be consistent with the actual formula for E(Expectations).
+
+            Step 6: Why does this make sense?
+                Because dropout randomly disables neurons, total output fluctuates.
+                Scaling the active neurons by 1/keep_prob compensates for the missing neurons.
+
+            Expected output per neuron:
+                For each neuron:
+                    Probability neuron kept = keep_prob (0.5)
+                    When kept, output scaled by 1/keep_prob (2)
+                    When dropped, output = 0
+
+                So expected output of neuron i:
+                    E[output] = keep_prob * (A[i] / keep_prob) + (1 - keep_prob) * 0
+                            = A[i]
+
+            Therefore, over many batches, average output matches the full activation without dropout.
+            
+        This keeps training stable and consistent with test time behavior.
+    
+        NOTE: Inverted dropout (the one described above), is the most popular way to apply dropout regularization where we don't need to work with scaling the
+            test set.
+    
+        Why does dropout work?
+            Intuition: Can't rely on any one feature, so have to spread out weights, because during dropout any feature could go away at random.
+                       This helps shrink the weight of all the parameters and not just support one parameter to be much heavier than the other.
+    
+        Dropout is powerful, but it has some downsides:
+            Slower training convergence: Because neurons are randomly dropped, the network gets noisy signals and may take longer to learn.
+            Less effective on small networks or datasets: Over-regularizing can hurt performance when your model or data is small; dropout 
+                                                          may cause underfitting.
+            Not always ideal for certain architectures: For example, dropout doesn’t work well with Batch Normalization or some recurrent networks
+                                                        unless carefully tuned.
+            Increases training time and complexity: Random dropout masks and scaling add slight computational overhead during training.
+            Hyperparameter tuning needed: Choosing the right keep_prob is important; too high or low can degrade results.
+
+        Other Regularization Methods:
+            1. Data Augmentation
+                - Technique to artificially increase the size and diversity of the training dataset.
+                - Helps reduce overfitting by making the model see varied versions of the input data.
+                - Common image augmentation examples:
+                - Rotation (e.g., rotate images by small degrees)
+                - Translation (shifting images slightly)
+                - Scaling (zooming in or out)
+                - Flipping (horizontal or vertical flips)
+                - Adding noise or warps (elastic distortions, perspective transforms)
+                - Color jittering (changing brightness, contrast)
+
+            2. Early Stopping
+                - Regularization method that stops training when the model performance on a validation set stops improving.
+                - Prevents overfitting by halting training before the model begins to memorize training data.
+                - Typically, training stops if validation loss doesn’t improve for several consecutive epochs ("patience").
+
+            3. Orthogonalisation
+                - Process of transforming vectors (or parameters) to be orthogonal (independent) to each other.
+                - Helps reduce redundancy and improve learning dynamics.
+                - (Detailed notes to be covered later)
+
+Some common "-wise" ending operations in general CS:
+    1. Element-wise: Operates independently on each element of arrays of the same shape.
+        Used in: matrix operations, activations.
+        Example: ReLU(x) = max(0, x) is element-wise.
+
+    2. Pairwise: Works on all possible pairs of elements from two collections.
+        Used in: similarity/distance matrices.
+        Example: pairwise\_distances(X, Y) in sklearn.
+
+    3. Piecewise: Defines logic or functions in pieces depending on the condition or input range.
+        Used in: conditional functions, loss functions.
+
+    4. Pointwise: Similar to element-wise, but often used in functional analysis or neural networks.
+        Example: pointwise convolutions (1x1 filters in CNNs).
+
+    5. Bitwise: Operates on the binary representation of integers.
+        Used in: low-level programming, flags, masks.
+        Example: x & y, x | y, x ^ y
+
+    6. Row-wise / Column-wise: Applies operations per row or column of a matrix.
+        Example: Row-wise mean: np.mean(X, axis=1)
+
+    7. Entrywise: Synonym for element-wise, mostly used in math literature.
+
+    8. Clockwise / Counterclockwise: Used in geometry, image rotations, coordinate systems.
+
+    9. Otherwise: A conditional fallback in logic or math.Example: "Do this, otherwise do that."
+
+Normalizing Inputs:
+    - Input normalization is a preprocessing step that improves neural network training.
+    - It helps the model converge faster and makes the optimization landscape smoother.
+
+    Step 1: Mean Normalization
+        - Subtract the mean from each input feature to center the data around zero.
+        Formula:
+            mu = (1 / m) * Σ (i = 1 to m) X^(i)
+            x' = x - mu
+
+        Where:
+            - X^(i) is the i-th training example
+            - m is the total number of examples
+            - mu is the mean of the input feature across the training set
+
+    Step 2: Variance Normalization
+        - Normalize the feature variance to 1 by dividing by the standard deviation.
+        First compute variance:
+            sigma_squared = (1 / m) * Σ (i = 1 to m) [X^(i)] ** 2   ← element-wise square
+        Then normalize:
+            x'' = x' / sqrt(sigma_squared + epsilon)
+
+    Note on Element-wise Multiplication:
+        - Element-wise multiplication (also called the Hadamard product) means multiplying corresponding elements of two matrices or vectors.
+        - Example:
+            A = [2, 4]
+            A ** 2 = [4, 16]  → each element squared individually
+
+    NOTE: If using this same scale to train the data, then the same sigma and mu needs to be used to normalize the test data. Normalizing differently can
+          have adverse effects on the model's performance.
+
+    Final Note:
+        - Normalizing inputs is especially important when features have different scales.
+        - Most frameworks and deep learning practices include this step before feeding data into the network.
+
+    Vanishing / Exploding Gradients
+        Definition:
+            - These are problems that occur during backpropagation in deep neural networks,
+            where gradients become either too small (vanishing) or too large (exploding),
+            making training unstable or slow.
+
+        Vanishing Gradients:
+            - Gradients shrink as they are backpropagated through deep layers.
+            - Eventually, they become so small that weights stop updating — learning stalls.
+            - Common in deep networks using sigmoid or tanh activations.
+            - Especially problematic in very deep networks or RNNs.
+
+        Exploding Gradients:
+            - Gradients grow exponentially during backpropagation.
+            - Causes huge weight updates, leading to overflow or NaNs.
+            - Model becomes unstable and diverges.
+
+        Why it happens:
+            - Caused by repeated multiplication of derivatives through many layers.
+            - If derivatives < 1 → vanishing gradients.
+            - If derivatives > 1 → exploding gradients.
+
+        Solutions:
+            - Use ReLU activation instead of sigmoid/tanh.
+            - Use proper weight initialization (e.g., He or Xavier initialization).
+            - Gradient clipping (for exploding gradients).
+            - Batch normalization to stabilize distributions across layers.
+            - Residual connections (ResNets) to ease gradient flow.
+
+        Note:
+            Vanishing/exploding gradients are one reason why very deep networks were hard to train before techniques like ReLU, batch norm, and residual
+            connections were introduced.
+
+Gradient Checking
+    Purpose:
+        - Gradient checking is used to verify the correctness of the gradients computed via backpropagation.
+        - It compares the analytical gradient (from backprop) to the numerical approximation.
+
+    Numerical Gradient Formula:
+        Given a function f(θ), the gradient with respect to θ can be approximated as:
+
+        grad_approx = [f(θ + ε) - f(θ - ε)] / (2 * ε)
+
+        Where:
+        - θ is a scalar or vector parameter
+        - ε (epsilon) is a very small number (e.g., 1e-7)
+        - This is the symmetric difference quotient
+
+    Why use (2 * ε) instead of just ε?
+        - Forward difference (less accurate):
+            [f(θ + ε) - f(θ)] / ε   → Error term: O(ε)
+
+    - Central difference (used above):
+        [f(θ + ε) - f(θ - ε)] / (2 * ε)   → Error term: O(ε²)
+
+    So the symmetric version is:
+        - More accurate
+        - Converges faster to the true gradient as ε → 0
+
+    Proof Intuition (1D Case):
+        From Taylor expansion:
+            f(θ + ε) ≈ f(θ) + εf'(θ) + (ε² / 2)f''(θ)  
+            f(θ - ε) ≈ f(θ) - εf'(θ) + (ε² / 2)f''(θ)
+
+    Subtract the two:
+    f(θ + ε) - f(θ - ε) ≈ 2εf'(θ) + O(ε³)
+
+    Now divide by 2ε:
+        [f(θ + ε) - f(θ - ε)] / (2ε) ≈ f'(θ) + O(ε²)
+
+        This proves that the central difference approximation converges faster (quadratic error).
+
+    Practical Use:
+        - Run gradient checking on small models or a few parameters before training.
+        - Compare numerical and backprop gradients; they should be very close (e.g., within 1e-7).
+        - Disable dropout and regularization when checking, to isolate the gradient.
+
+        Note:
+        - Never use gradient checking during training (too slow).
+        - Useful for debugging backprop implementations.
+
+    Gradient Check for Neural Networks
+        Purpose:
+            - To validate backpropagation by comparing analytical gradients (from backprop) with numerical gradients.
+        Steps:
+            1. Flatten and Concatenate Parameters into Vector Theta
+                - For all weights (W1, W2, ..., WL) and biases (b1, b2, ..., bL), reshape and stack them into one big column vector:
+
+            Theta = [W1.flatten(); b1.flatten(); W2.flatten(); b2.flatten(); ... ; WL.flatten(); bL.flatten()]
+                - Theta represents all model parameters in a single vector.
+
+            2. Flatten and Concatenate Gradients into Vector dTheta
+                - Do the same for the gradients computed by backpropagation:
+                    dTheta = [dW1.flatten(); db1.flatten(); dW2.flatten(); db2.flatten(); ... ; dWL.flatten(); dbL.flatten()]
+                - dTheta contains all the gradients with respect to Theta.
+
+        3. Compute Numerical Gradients
+            - For each element i in Theta:
+                grad_approx[i] = [f(Theta + ε * ei) - f(Theta - ε * ei)] / (2 * ε)
+                where:
+                    ei is a unit vector with 1 at position i and 0 elsewhere.
+
+        4. Compare Gradients
+            - Use the following formula to compare:
+                difference = norm(dTheta - grad_approx) / (norm(dTheta) + norm(grad_approx))
+            - If the difference is small (e.g., < 1e-7), gradients are likely correct.
+
+        Notes:
+            - Reshaping into vectors makes numerical gradient checking practical and consistent with matrix calculus.
+            - Use vectorization to speed up computation.
+            - Disable dropout and regularization during grad check to isolate pure gradients.
+
+        Reminder:
+            - Only use gradient check for debugging; it is computationally expensive and not used during training.
+            - If algorithm fails grad check, look at components to try to identify the bug.
+            - Remember Regularization term
+            - Doesn't work with dropout
+            - Run at random initialization; perhaps again after some training.
+
+Optimization Algorithms:
+    The gradient descent we have seen all along is called as Batch gradient descent where the entirety of the training set is processed through the algorithm,
+    at once, where each data points are traversed several times during the learning process.
+
+    Intuition: When we are working with deep learning, we generally have big amount of data. To process them, it takes a very long time, and when applying
+               gradient descent we have to process each data points several times through the course of the learning process, hence making the programming
+               super slow and inefficient. To counter this problem, there are few ways to apply our previously learned optimization algorithms which will
+               not only make the program smaller but also run faster.
+
+    1. Mini-batch Gradient Descent:
+        In this algorithm, we break the sample into many small subsets called as "mini-batch".
+        This is shown by the notation:
+            Mini-batch (t): X^{t}, Y^{t}; here the superscript is written inside curly brackets to indicate the batch.
+        PSEUDOCODE:
+            for epoch = 1 to num_epochs:
+                Shuffle (X, Y)
+                Partition (X, Y) into mini-batches: (X^{(1)}, Y^{(1)}), ..., (X^{(m_t)}, Y^{(m_t)})
+                for t = 1 to m_t:
+                    Compute forward propagation using X^{(t)}
+                    Compute cost J
+                    Compute backward propagation to get gradients
+                    Update parameters:
+                        θ := θ - α * ∇J(θ; X^{(t)}, Y^{(t)})
+        
+        Advantages:
+            More efficient than full-batch.
+            Reduces variance in updates → more stable convergence.
+            Makes better use of vectorization & parallelism.
+
+        NOTE: If mini-batch size = m : Batch Gradient Descent X^{(1)}, Y^{(1)} = (X, Y)
+              If mini-batch size = 1 : Stochastic Gradient Descent; Every example is it's own mini-batch.
+              In Practice: The size of mini-batch is somewhere in between 1 and m.
+        
+        Choosing your mini-batch size:
+            1. If the training set is small: Use batch gradient descent.
+            2. Typical mini-batch sizes: 64, 128, 256, 512 <- Power of 2.
+            3. Make sure mini-batch X^{t}, Y^{t} fits in the CPU/GPU memory. If the batch is bigger than what the CPU/GPU in your system processes then
+            the performance will fall off the cliff.
+
+    2. Stochastic Gradient Descent:
+        In this algorithm, we break the sample (m) into 'm' mini-batches, where each individual data points is a mini-batch.
+        This algorithm, a very long gradient descent process, and never actually converge, but comes close to the global minimum.
+        PSEUDOCODE:
+            for epoch = 1 to num_epochs:
+            Shuffle training set (X, Y)
+            for i = 1 to m:
+                Compute forward propagation using X^{(i)}
+                Compute cost
+                Compute backward propagation to get gradients
+                Update parameters:
+                    θ := θ - α * ∇J(θ; X^{(i)}, Y^{(i)})
+    
+        Key Points:
+            Fast updates = faster learning initially.
+            High noise/variance in updates (bounces around the loss surface).
+            Never truly converges, but hovers around the minimum, which can be beneficial in escaping local minima.
+
+    Some algorithms faster than gradient descent:
+    3. Exponentially Weighted Average (Exponential Moving Average - EMA):
+        In optimization (especially deep learning), we want smoother, more stable updates.
+        Instead of reacting to every noisy gradient immediately (like SGD does), EWA helps average out the noise over time.
+
+        It's used in:
+            Optimizers like Momentum, Adam
+            Tracking moving averages (e.g., loss, gradients)
+            Time series forecasting
+
+        Formula:
+            v_t = beta * v_(t-1) + (1 - beta) * theta_t
+            Where:
+                v_t: Smoothed value at time step t
+                theta_t: Actual new value at time step t (e.g., cost or gradient)
+                beta is the smoothing factor, typically close to 1 (e.g., 0.9 or 0.99)
+
+        Intuition:
+            Large beta: smoother but slower to react to changes
+            Small beta: reacts quickly, but less smooth
+
+        Example:
+            With beta = 0.9, the new value contributes 10%, and 90% is from past data.
+            This dampens sudden spikes and gives a cleaner trend.
+
+        Bias Correction:
+            At the beginning, v_t is biased toward 0 since v_0 = 0.
+            To fix this, we apply bias correction:
+                v_corrected = v_t / (1 - beta^t)
+
+            This makes the average accurate, especially in early steps.
+
+        Why it's faster than vanilla Gradient Descent:
+            Vanilla GD can:
+                Oscillate in steep regions
+                Overshoot the minimum
+                Be sensitive to noisy gradients
+                EWA smooths out gradients, gives consistent directions, and helps avoid those problems; Think of it like momentum or inertia.
+
+        CODE-EXAMPLE:
+            v = 0  
+            beta = 0.9  
+            costs = [13, 15, 14, 10, 9, 6, 4]  
+            for t in range(len(costs)):  
+                v = beta * v + (1 - beta) * costs[t]  
+                print(f"Step {t+1}: v = {v}")
+
+        Applications in Optimization:
+            Momentum: EWA of gradients
+            RMSProp: EWA of squared gradients
+            Adam: Both (EWA of gradients and squared gradients) with bias correction
+
+    Bias Correction in Exponentially Weighted Averages (EWA)
+        Why Bias Occurs:
+            In EWA, we use the formula:
+            v_t = β * v_(t−1) + (1 − β) * θ_t
+            θ_t is the current value (e.g., gradient)
+            v_t is the exponentially weighted average
+            β is a smoothing constant (e.g., 0.9, 0.99)
+
+        The issue is: we initialize v_0 = 0.
+
+        This causes early v_t to be biased toward zero, especially when t is small. The moving average doesn't have enough observations early on, so it's
+        artificially low.
+
+        The Fix: Bias Correction
+
+        To correct this bias, we use:
+            v_corrected_t = v_t / (1 − β^t)
+        This rescales the average to what it would have been if it had run for a long time.
+
+        Why It Works:
+            Let’s expand v_t:
+                v_t = (1 − β) * (θ_t + β * θ_(t−1) + β^2 * θ_(t−2) + ...)
+            Total weight sum:
+                (1 − β) * (1 + β + β^2 + ... + β^(t−1)) = 1 − β^t
+
+            So early on, the sum of weights is not 1. We’re underestimating the true average.
+            Dividing by (1 − β^t) removes this underestimation.
+
+        Example:
+            Assume θ_t = 10, β = 0.9
+
+            Without correction:
+                v_1 = 1, v_2 = 1.9, v_3 ≈ 2.71
+            Corrected:
+                v_corrected_1 = 1 / (1 − 0.9^1) = 10
+                v_corrected_2 ≈ 1.9 / (1 − 0.9^2) ≈ 10
+                v_corrected_3 ≈ 2.71 / (1 − 0.9^3) ≈ 10
+            So bias correction immediately gives you the right estimate.
+
+        In Optimizers (e.g., Adam):
+            Adam uses EWA for gradients and squared gradients:
+                m_t = β1 * m_(t−1) + (1 − β1) * g_t
+                v_t = β2 * v_(t−1) + (1 − β2) * g_t^2
+            Both are biased low early in training. Adam uses:
+                m_corrected = m_t / (1 − β1^t)
+                v_corrected = v_t / (1 − β2^t)
+            This ensures proper scaling and step sizes from the very first updates.
+
+        Conclusion:
+            Bias correction ensures that your moving average is accurate even in the early iterations. Without it, training is slower and 
+            potentially unstable. With it, optimizers like Adam converge faster and more reliably.
+        
+    4. Gradient Descent with Momentum
+            Problem:
+                Standard gradient descent can be slow and oscillate, especially in ravines — where the surface curves more steeply in one direction 
+                than the other.
+
+            Idea:
+                Instead of relying solely on the current gradient, we build momentum by accumulating past gradients. This helps us move faster in 
+                the correct direction and dampens oscillations.
+
+            Formula:
+                Let:
+                    - W, b       = weights and biases
+                    - dW, db     = gradients of W and b
+                    - vdW, vdb   = exponentially weighted average of gradients
+                    - β          = momentum hyperparameter (commonly 0.9)
+                    - α          = learning rate
+
+                Update steps for each layer:
+                    1. vdW = β * vdW + (1 - β) * dW
+                    2. vdb = β * vdb + (1 - β) * db
+                    3. W = W - α * vdW
+                    4. b = b - α * vdb
+
+                Interpretation:
+                    - The gradient gets "smoothed out" by the velocity.
+                    - Recent gradients affect the motion more.
+                    - Acceleration builds up in directions with consistent gradients.
+                    - In directions with gradient sign changes, momentum cancels out.
+
+                Benefits:
+                    - Faster convergence on deep valleys / ravines
+                    - Reduced oscillation in high-curvature directions
+                    - More stable updates than plain SGD
+
+                Typical Setting:
+                    β = 0.9
+                    α = 0.01 (or tuned)
+
+            Analogy:
+                Think of a ball rolling down a hill.
+                - If it keeps getting pushed the same way, it accelerates.
+                - If the pushes cancel each other out, it slows down.
+
+            Limitations:
+                - Still may overshoot or oscillate with poor β or α
+                - Doesn't adapt learning rate per parameter like Adam
+
+            Common Use:
+                Used widely before Adam became default.
+                Adam is essentially momentum + RMSprop (adaptive LR).
+    
+    5. Root Mean Squared Propagation (RMSProp):
+        RMSProp is an optimization algorithm designed to fix the problems of:
+            - Vanishing/exploding gradients
+            - Oscillations in vertical directions of the cost surface
+
+        It adapts the learning rate for each parameter individually by dividing the learning rate
+        by an exponentially decaying average of squared gradients.
+
+        RMSProp works by keeping track of a running average of the squared gradients:
+
+        Pseudocode:
+            Given:
+            - Learning rate: α (alpha)
+            - Decay rate: β (beta), typically around 0.9
+            - ε is a small value (like 1e-8) to avoid division by zero
+
+            Step-by-step:
+                1. Initialize: 
+                    SdW = 0 (for weights), Sdb = 0 (for biases)
+
+            2. For each iteration:
+                SdW = β * SdW + (1 - β) * (dW)^2
+                Sdb = β * Sdb + (1 - β) * (db)^2
+
+                W = W - α * dW / (√(SdW) + ε)
+                b = b - α * db / (√(Sdb) + ε)
+
+        Notes:
+            - (dW)^2 means element-wise square of gradients
+            - This effectively reduces the learning rate for parameters that receive large gradients,
+            and increases it for parameters with smaller gradients
+            - Helps in converging faster by smoothing updates and avoiding sharp oscillations
+
+        Why does this work?
+            - Large gradients get suppressed (since SdW becomes large)
+            - Small gradients get boosted
+            - This balances the update step size for all weights
+
+        No bias correction is typically used in RMSProp.
+        It was introduced by Geoffrey Hinton and became widely adopted in deep learning.
+
+        Compared to Momentum:
+            - Momentum builds velocity based on direction
+            - RMSProp scales learning rate based on magnitude
+            - Adam = Momentum + RMSProp (combines both ideas)
+
+    6. Adam Optimization Algorithm:
+        Adam (Adaptive Moment Estimation) combines ideas from:
+            - Momentum (exponentially weighted average of gradients)
+            - RMSProp (exponentially weighted average of squared gradients)
+        It adapts the learning rate for each parameter using estimates of first and second moments of the gradients.
+
+        Key variables:
+            - m_t: exponentially weighted average of gradients (momentum)
+            - v_t: exponentially weighted average of squared gradients (RMSProp)
+            - β1: decay rate for first moment (typical value 0.9)
+            - β2: decay rate for second moment (typical value 0.999)
+            - ε: small number to avoid division by zero (e.g., 1e-8)
+            - α: learning rate
+
+        Algorithm steps:
+            1. Initialize m_0 = 0, v_0 = 0, t = 0
+
+            2. At each iteration t:
+                - t = t + 1
+                - Compute gradients: g_t
+                - Update biased first moment estimate:
+                    m_t = β1 * m_(t−1) + (1 − β1) * g_t
+                - Update biased second moment estimate:
+                    v_t = β2 * v_(t−1) + (1 − β2) * (g_t)^2
+                - Compute bias-corrected first moment:
+                    m_hat = m_t / (1 − β1^t)
+                - Compute bias-corrected second moment:
+                    v_hat = v_t / (1 − β2^t)
+                - Update parameters:
+                    θ = θ − α * m_hat / (sqrt(v_hat) + ε)
+
+        Why bias correction?
+            - Because m_0 and v_0 are initialized as zero vectors,
+            the estimates m_t and v_t are biased towards zero early in training.
+            - Correcting the bias ensures more accurate moment estimates.
+
+        Benefits of Adam:
+            - Combines momentum and adaptive learning rates
+            - Works well in practice on a variety of deep learning tasks
+            - Requires less tuning of learning rates
+            - Handles sparse gradients and noisy problems effectively
+
+        Typical hyperparameters:
+            - α = 0.001
+            - β1 = 0.9
+            - β2 = 0.999
+            - ε = 1e-8
+
+        Summary:
+            Adam is currently one of the most popular optimization algorithms in deep learning.
+            It provides fast convergence and good performance with minimal hyperparameter tuning.
+
+    7. Learning Rate Decay
+        Learning rate decay is a technique to reduce the learning rate over time, during training, helping models converge more smoothly and
+        avoid overshooting minima.
+
+        Why decay learning rate?
+            - Large learning rate early helps fast progress.
+            - Smaller learning rate later helps fine-tune and stabilize convergence.
+            - Prevents oscillations near minima.
+            - Helps improve final accuracy.
+
+        Common decay methods:
+            1. Time-based decay:
+                α = α_0 / (1 + decay_rate * epoch)
+                - α_0: initial learning rate
+                - decay_rate: hyperparameter controlling speed of decay
+                - epoch: current epoch number
+
+            2. Step decay:
+                Reduce α by a factor every fixed number of epochs.
+                Example: halve α every 10 epochs:
+                α = α_0 * drop_factor^(floor(epoch / epochs_drop))
+
+            3. Exponential decay:
+                α = α_0 * exp(-decay_rate * epoch)
+
+            4. Adaptive methods (e.g., ReduceLROnPlateau):
+                Reduce α when performance metric stops improving.
+
+        Usage notes:
+            - Decay rate and schedule must be tuned.
+            - Too fast decay can slow training.
+            - Too slow decay may cause oscillations near minima.
+            - Often combined with optimizers like SGD, Adam.
+
+        Summary:
+            Learning rate decay helps balance fast initial learning with stable final convergence,
+            improving overall training performance and generalization.
+
+The Problem of Local Optima
+    In training neural networks, the optimization landscape is complex and non-convex.
+    Two common issues that slow or trap optimization are:
+        1. Saddle Point:
+            - A point where the gradient is zero, but the point is neither a local minimum nor maximum.
+            - In some directions, the surface curves upwards (like a minimum),
+                in others, it curves downwards (like a maximum).
+            - Optimization can get “stuck” or move very slowly near saddle points.
+            - Saddle points are more common than poor local minima in high dimensions.
+
+        2. Plateau:
+            - A flat region in the loss surface where the gradient is near zero.
+            - The optimizer makes little or no progress because the slope is very small.
+            - Can cause long delays in training as gradient updates are tiny.
+            - Plateaus slow down convergence significantly.
+
+    Why they matter:
+        - Both saddle points and plateaus cause slow learning or training stagnation.
+        - Optimizers like momentum, RMSProp, and Adam help escape these by adding velocity or adapting learning rates.
+        - Understanding these helps design better training schedules and algorithms.
+
+    Summary:
+        Local optima problems like saddle points and plateaus complicate neural network training,
+        but advanced optimizers and techniques reduce their impact.
+

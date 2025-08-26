@@ -1,0 +1,24 @@
+Softmax Step-by-Step (Input: logits with shape (num_samples, num_classes))
+
+1. Compute max per row for numerical stability:
+   max_per_row = np.max(z, axis=1, keepdims=True)
+   Shape: (num_samples, 1)
+
+2. Subtract max_per_row from each element (broadcasting):
+   z_stable = z - max_per_row
+   Shape: (num_samples, num_classes)
+
+3. Take element-wise exponential:
+   exp_z = np.exp(z_stable)
+
+4. Sum exponentials per row:
+   sum_exp = np.sum(exp_z, axis=1, keepdims=True)
+   Shape: (num_samples, 1)
+
+5. Divide each exp_z element by sum_exp (broadcasting division):
+   softmax_output = exp_z / sum_exp
+   Shape: (num_samples, num_classes)
+
+Output:
+- Each row is a probability distribution summing to 1
+- Emphasizes largest logit while preserving all class probabilities

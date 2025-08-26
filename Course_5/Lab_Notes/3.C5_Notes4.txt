@@ -1,0 +1,2 @@
+Notes 4: Sequence Model - Final Week - Transformer Architecture
+

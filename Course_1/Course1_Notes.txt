@@ -1,0 +1,528 @@
+Week 1: Introduction to Deep Learning
+
+Deep Learning:
+    It is simply another name for training deep neural networks, where "deep" refers to neural network with many hidden layers.
+
+COMPUTATIONAL GRAPH: FORWARD & BACKWARD PROPAGATION
+    A computational graph is a way to visualize and systematically compute complex mathematical operations by breaking them down into a series of 
+    simple operations (nodes) connected by edges (values). It is foundational for understanding how deep learning models compute and learn.
+
+    FORWARD PROPAGATION
+        In forward propagation, the inputs flow through the graph from the input layer to the output layer. Each node in the graph performs 
+        a simple operation and passes the result forward.
+
+        Example:
+        Let’s define the function:
+            J(a, b, c) = (a + b) * c  
+            We break it into steps:
+            Step 1: d = a + b  
+            Step 2: J = d * c  
+            If:
+                a = 2  
+                b = 3  
+                c = 4  
+            Then:
+                d = a + b = 2 + 3 = 5  
+                J = d * c = 5 * 4 = 20  
+            So, the forward pass gives us J = 20.
+
+    BACKWARD PROPAGATION (GRADIENT CALCULATION):
+        Backward propagation is where we compute gradients of the final output with respect to each input variable — essential for learning 
+        in neural networks.
+        We use the chain rule of calculus to compute gradients step by step from output back to inputs.
+        Goal: Find ∂J/∂a, ∂J/∂b, and ∂J/∂c.
+
+        From the forward pass:
+            J = d * c  
+            d = a + b  
+            Gradients:
+                ∂J/∂c = d = 5  
+                ∂J/∂d = c = 4  
+                ∂d/∂a = 1  
+                ∂d/∂b = 1  
+            Then:
+                ∂J/∂a = ∂J/∂d * ∂d/∂a = 4 * 1 = 4  
+                ∂J/∂b = ∂J/∂d * ∂d/∂b = 4 * 1 = 4  
+            So:
+                ∂J/∂a = 4  
+                ∂J/∂b = 4  
+                ∂J/∂c = 5  
+        These gradients are used to update weights in deep learning models.
+
+        WHY COMPUTATIONAL GRAPHS?
+            Help visualize and debug complex functions.
+
+            Enable automatic differentiation.
+
+            Allow frameworks like TensorFlow, PyTorch to compute gradients efficiently.
+
+        REAL WORLD NEURAL NETWORK EXAMPLE:
+            In a neural network layer:
+
+            Z = W * X + b  
+            A = sigmoid(Z)
+            Loss = L(A, Y)
+            Each operation (multiplication, addition, activation) forms a node. Forward pass computes predictions; backward pass computes gradients:
+
+            ∂Loss/∂W, ∂Loss/∂b, ∂Loss/∂X
+            These gradients are passed to the optimizer (like SGD or Adam) to update weights.
+
+Complete Forward and Backward Propagation derivation:
+    Forward Propagation:
+        z = wᵗx + b  
+        ŷ = σ(z) = 1 / (1 + e⁻ᶻ)  
+        L(y, ŷ) = -[y·log(ŷ) + (1 − y)·log(1 − ŷ)]
+
+    Backward Propagation:
+        1. ∂L/∂ŷ = -[y / ŷ - (1 - y) / (1 - ŷ)]
+
+        2. ∂ŷ/∂z = ŷ · (1 - ŷ)
+
+        3. ∂L/∂z = ∂L/∂ŷ · ∂ŷ/∂z  
+                = [-(y / ŷ - (1 - y) / (1 - ŷ))] · [ŷ · (1 - ŷ)]  
+                = ŷ - y
+
+        4. ∂z/∂w = x  
+           ∂z/∂b = 1
+
+        5. ∂L/∂w = ∂L/∂z · ∂z/∂w = (ŷ - y) · x  
+           ∂L/∂b = ∂L/∂z · ∂z/∂b = (ŷ - y)
+
+    Vectorized over m examples:
+        dw = (1/m) · Σᵢ (ŷ⁽ⁱ⁾ - y⁽ⁱ⁾) · x⁽ⁱ⁾  
+        db = (1/m) · Σᵢ (ŷ⁽ⁱ⁾ - y⁽ⁱ⁾)
+
+So, after the derivation above we can see how the gradient descent algorithm progresses, hence we can use it to produce a pseudo code.
+PSEUDOCODE:
+    Suppose, the number of features = 2 [x1, x2]
+    Initialize:
+        J = 0;
+        dw_1 = 0;
+        dw_2 = 0;
+        db = 0;
+    
+    For i = 1 to m:
+        z^(i) = w^T . X^(i) + b
+        a^(i) = g(z^(i))
+        J += -[y^(i) * log(a^i) + (1 - y^(i) log(1 - a^(i)))]
+        dz^(i) = a^(i) - y^(i)
+        dw_1 += x_1^(i) * dz(i)
+        dw_2 += x_2^(i) * dz(i)
+        db += dz^(i)
+
+    J /= m;
+    dw_1 /= m;
+    dw_2 /= m;
+    db /= m;
+
+    w_1 := w1 - alpha * dJ/dw1
+    w_2 := w1 - alpha * dJ/dw2
+    b   := b - alpha * dJ/db
+
+NOTE: The above steps are one whole step for a gradient descent, also known as an epoch. This step constitutes of performing a forward pass with the
+      initial values for parameters, followed by a backward propagation step to compute the gradients.
+    
+      After accumulating the gradients over the entire dataset, the parameters are updated by moving them slightly in the direction that 
+      reduces the loss, controlled by the learning rate.
+
+Cons: In the above code there is a big consequence to it, where we use multiple for loops, one to iterate over the complete dataset, and the other to
+      iterate over the number of features in the given dataset, which turns out to be very computationally expensive.
+
+      So in order to solve this issue, we use the technique of vectorization where we vectorize the inputs and accurately solve them using
+      matrix multiplication which handles the processes parallel-ly in the cpu. EG: Using matmul() from numpy, or @ for matrix multiplication.
+
+Vectorization:
+    Using vectorized implementation we can activate the GPUs and CPUs SIMD - single instruction, multiple data to take advantage of parallelism to
+    compute the terms much faster.
+
+Neural Network Programming Guidelines:
+    1. Whenever possible, avoid explicit for-loops; use vectorized operations instead.
+    2. Normalize input data for better training stability.
+    3. Initialize weights properly to prevent gradient issues.
+    4. Use mini-batch gradient descent for efficient training.
+    5. Structure code modularly for clarity and maintenance.
+    6. Use appropriate learning rates and consider adaptive optimizers.
+    7. Apply regularization techniques to reduce overfitting.
+    8. Choose activation functions suited to your problem and network depth.
+
+After vectorization, the looping mechanism change a little:
+    PSEUDOCODE:
+        X: shape (n_x, m) -- features across all examples (columns)
+        Y: shape (1, m)   -- labels
+        w: shape (n_x, 1)
+        b: scalar
+
+        Z = np.dot(w.T, X) + b          # shape (1, m)
+        A = sigmoid(Z)                  # shape (1, m)
+
+        # Compute cost
+        J = -(1/m) * np.sum(Y * np.log(A) + (1 - Y) * np.log(1 - A))
+
+        # Backward propagation (gradients)
+        dZ = A - Y                     # shape (1, m)
+        dw = (1/m) * np.dot(X, dZ.T)  # shape (n_x, 1)
+        db = (1/m) * np.sum(dZ)       # scalar
+
+        # Update parameters
+        w = w - alpha * dw
+        b = b - alpha * db
+    
+Neural Network Vectorization:
+    Pseudocode:
+        Previously (Example-wise Loop):
+            for j = 1 to m:
+                z[i](j) = w[j]x(i) + b[i]
+                a[i](j) = g(z[i](j))
+                z[i](j) = W[i]a[i][j] + b[i]
+                a[i](j) = g(z[i](j))
+    
+    Pseudocode:
+        Vectorized:
+            # Let:
+            #   X = input matrix (features × m examples)
+            #   W[i] = weight matrix of layer i
+            #   b[i] = bias vector of layer i
+            #   A[i] = activation matrix of layer i (features × m examples)
+            #   g() = activation function applied element-wise
+
+            A[0] = X  # input layer activations
+
+            for i = 1 to number_of_layers:
+                Z[i] = W[i] · A[i-1] + b[i]   # matrix multiplication + broadcasted bias
+                A[i] = g(Z[i])                # element-wise activation on entire batch
+
+UNVECTORIZED FORWARD PROPAGATION (PSEUDOCODE)
+    Assume:
+        Number of input features = 3
+        Number of hidden neurons = 4
+        Number of output neurons = 1
+        Number of training examples = m
+
+        For each training example i from 1 to m:
+            x = (x1, x2, x3) for example i
+
+            For each hidden neuron j from 1 to 4:
+                z1[j] = w1[j][0]*x1 + w1[j][1]*x2 + w1[j][2]*x3 + b1[j]
+                a1[j] = sigmoid(z1[j])
+
+            z2 = w2[0]*a1[0] + w2[1]*a1[1] + w2[2]*a1[2] + w2[3]*a1[3] + b2
+            a2 = sigmoid(z2)
+
+        Explanation:
+            In the unvectorized version of forward propagation, we manually iterate over each training example one at a time. For each example, we take
+            the input vector x with three features. This is passed through each neuron in the hidden layer, where a weighted sum is calculated (z1) using
+            the weights corresponding to that neuron and the input features. Then a nonlinear activation function like the sigmoid is applied,
+            giving us the activation value (a1) for each neuron in the hidden layer. Once all hidden activations are computed, we pass them to 
+            the output layer neuron. This output neuron again performs a weighted sum on the hidden activations, adds its bias, and applies the sigmoid 
+            function to produce the final prediction (a2) for that training example.
+
+            The key benefit here is clarity. This step-by-step expansion shows exactly how data flows from input to output. However, it’s inefficient 
+            when working with large datasets because it processes one example at a time.
+
+    VECTORIZED FORWARD PROPAGATION (PSEUDOCODE)
+        Assume:
+            X is a matrix of shape (3, m)
+            W1 is a matrix of shape (4, 3)
+            b1 is a column vector of shape (4, 1)
+            W2 is a matrix of shape (1, 4)
+            b2 is a scalar or (1, 1)
+
+        Z1 = W1 dot X + b1                  # shape: (4, m)
+        A1 = sigmoid(Z1)                   # shape: (4, m)
+
+        Z2 = W2 dot A1 + b2                # shape: (1, m)
+        A2 = sigmoid(Z2)                   # shape: (1, m)
+
+    Explanation:
+        In the vectorized version, we handle all m training examples simultaneously using matrix operations. The input X is arranged such that 
+        each column represents one training example and each row represents a feature. We multiply W1 with X, resulting in Z1, which holds the 
+        pre-activation values for all neurons across all examples. The bias vector b1 is added to each column of Z1 using broadcasting. Then, the 
+        sigmoid function is applied element-wise to Z1, yielding the hidden layer activations A1.
+
+        Next, A1 is multiplied by W2, which collapses the 4 hidden activations per example down to one value per example, corresponding to the 
+        output neuron. The bias b2 is added to this result, and again the sigmoid function is applied to produce A2, which is the final prediction 
+        for all training examples. This approach is not only much faster but also more scalable and matches the real implementation in deep 
+        learning frameworks.
+
+    Matrix Structure and Flow
+        In our example with 3 input features, 4 hidden neurons, and 1 output neuron, if we had 5 training examples, the shapes of each matrix would be:
+            X: (3, 5) – 3 features, 5 examples
+            W1: (4, 3) – 4 hidden neurons, each with 3 weights
+            b1: (4, 1) – 1 bias per hidden neuron
+            Z1: (4, 5) – pre-activations for each hidden neuron and each example
+            A1: (4, 5) – post-activation values for each hidden neuron and each example
+            W2: (1, 4) – 1 output neuron, connected to all 4 hidden neurons
+            b2: (1, 1) – single bias for the output neuron
+            Z2: (1, 5) – output neuron pre-activations for all examples
+            A2: (1, 5) – final output predictions
+
+    In this format, the model can predict all 5 examples in one go. Each column in Z1 corresponds to a different example, and each row 
+    corresponds to a neuron. The same applies to A1, Z2, and A2.
+
+    This design aligns with the philosophy of vectorization — using efficient linear algebra operations to avoid explicit looping and take 
+    advantage of hardware acceleration like GPUs. The actual forward pass becomes highly readable and abstracted from the example-level operations. 
+    At a conceptual level, the vectorized computation is just a compact and efficient generalization of the unvectorized one, doing the 
+    same thing under the hood.
+
+Activation Functions:
+    1. Leaky ReLU:
+        Leaky ReLU is an activation function used in neural networks that improves upon the limitations of the standard ReLU. While ReLU outputs
+        zero for all negative inputs—potentially causing some neurons to "die" during training—Leaky ReLU allows a small, non-zero output 
+        for negative inputs. This is achieved by introducing a small slope (commonly 0.01) in the negative region, defined as f(x) = x if x > 0,
+        and f(x) = αx if x <= 0, where α is a small positive constant. This minor change ensures that gradients continue to flow even when input 
+        values are negative, reducing the chances of neurons becoming inactive and allowing the network to learn more robustly. Leaky ReLU maintains
+        computational efficiency while offering improved gradient behavior during training.
+    
+    2. Sigmoid:
+        Always use sigmoid in the output layer only, if the problem is suited for binary classification.
+    
+    3. tanh:
+        The tanh activation function given by:
+            a = (e^z - e^-z) / (e^z + e^-z)
+    
+    4. ReLU:
+        Use ReLU, if unsure on what activation function to use, as it is one of the most used activation function in the modern deep learning models.
+
+Gradient Descent
+    1. Sigmoid:
+        FORMULA: g(z) = 1 / (1 + exp(-z))
+
+        Derivative with respect to z:
+            d/dz [g(z)] = d/dz [1 / (1 + exp(-z))]
+
+        Using the chain rule:
+            = (exp(-z)) / (1 + exp(-z))^2
+
+        Multiply numerator and denominator by exp(z):
+            = [1 / (1 + exp(-z))] * [1 - 1 / (1 + exp(-z))]
+            = g(z) * (1 - g(z))
+
+        Therefore: g'(z) = g(z) * (1 - g(z))
+
+    2. tanh:
+        FORMULA: tanh(z) = (exp(z) - exp(-z)) / (exp(z) + exp(-z))
+
+        Derivative with respect to z:
+            d/dz [tanh(z)] = 1 - tanh(z)^2
+
+        Therefore: tanh'(z) = 1 - [tanh(z)]²
+
+    3. ReLU:
+        ReLU(z) =
+          z  if z > 0
+          0  if z ≤ 0
+
+        Derivative with respect to z:
+            ReLU'(z) =
+              1  if z > 0
+              0  if z ≤ 0
+
+Backpropagation:
+    UNVECTORIZED BACKPROPAGATION
+        Assume: 3 input features, 4 hidden neurons, 1 output neuron, m training examples, sigmoid activations everywhere, loss is mean‑squared
+        error for clarity.
+
+        PSEUDOCODE:
+            For each training example i = 1 to m:
+            # -------- forward pass (already done earlier) --------
+            x           = column i of X                  # shape (3,1)
+            z1          = W1 · x  + b1                  # (4,1)
+            a1          = sigmoid(z1)                   # (4,1)
+            z2          = W2 · a1 + b2                  # (1,1)
+            a2          = sigmoid(z2)                   # (1,1)  prediction
+
+            # -------- loss (scalar) --------
+            loss_i      = ½ · (a2 – y_i)²
+
+            # -------- backward pass --------
+            dL_da2      = a2 – y_i                      # derivative of MSE wrt a2
+            da2_dz2     = sigmoid'(z2) = a2 · (1 – a2)  # scalar
+            dL_dz2      = dL_da2 · da2_dz2              # (1,1)
+
+            dL_dW2      = dL_dz2 · a1ᵀ                  # (1,4) ← (1,1)(4,1)ᵀ
+            dL_db2      = dL_dz2                        # (1,1)
+
+            dz2_da1     = W2ᵀ                           # (4,1)
+            dL_da1      = dz2_da1 · dL_dz2              # (4,1)
+            da1_dz1     = a1 ⊙ (1 – a1)                 # element‑wise, (4,1)
+            dL_dz1      = dL_da1 ⊙ da1_dz1              # (4,1)
+
+            dL_dW1      = dL_dz1 · xᵀ                   # (4,3) ← (4,1)(3,1)ᵀ
+            dL_db1      = dL_dz1                        # (4,1)
+
+            # -------- accumulate gradients over the batch --------
+            W1_grad_sum += dL_dW1
+            b1_grad_sum += dL_db1
+            W2_grad_sum += dL_dW2
+            b2_grad_sum += dL_db2
+
+        After looping through all examples:
+             W1_grad = W1_grad_sum / m
+             b1_grad = b1_grad_sum / m
+             W2_grad = W2_grad_sum / m
+             b2_grad = b2_grad_sum / m
+
+            Weights are then updated by subtracting learning‑rate‑scaled gradients.
+
+        EXPLANATION (UNVECTORIZED)
+            The unvectorized version treats each training example separately. It first performs a standard forward pass to obtain the prediction a2.
+            The loss derivative with respect to this prediction (dL_da2) is computed from the mean‑squared error. Chain‑rule steps move backward:
+            from the output activation to its pre‑activation (z2), then into the output‑layer weights and bias. The gradient that flows into the 
+            hidden activations (dL_da1) is obtained by multiplying the upstream scalar dL_dz2 by the transpose of W2. Element‑wise multiplication 
+            with the sigmoid derivative converts this into dL_dz1, the gradient reaching the hidden pre‑activations. Finally, that gradient is 
+            spread back to W1 and b1. Every gradient matrix or vector is accumulated across examples, then averaged so a single step of gradient descent
+            can update all parameters. Conceptually, this mirrors calculus on paper; operationally, it is slow because it repeats identical algebra m times.
+        
+    VECTORIZED BACKPROPAGATION (PSEUDOCODE ― SAME NETWORK)
+        Matrix shapes:
+         X (3, m),   Y (1, m)
+         W1 (4, 3), b1 (4, 1)
+         W2 (1, 4), b2 (1, 1)
+
+        PSEUDOCODE:
+            # -------- forward pass for entire batch --------
+            Z1 = W1 · X + b1                       # (4,m)
+            A1 = sigmoid(Z1)                       # (4,m)
+            Z2 = W2 · A1 + b2                      # (1,m)
+            A2 = sigmoid(Z2)                       # (1,m)
+
+            # -------- loss (vector) --------
+            dL_dA2 = A2 – Y                        # (1,m)   MSE derivative
+
+            # -------- backward pass --------
+            dA2_dZ2 = A2 ⊙ (1 – A2)                # (1,m)
+            dL_dZ2  = dL_dA2 ⊙ dA2_dZ2             # (1,m)
+
+            dL_dW2  = (1/m) · dL_dZ2 · A1ᵀ        # (1,4)
+            dL_db2  = (1/m) · sum(dL_dZ2, axis=1)  # (1,1)
+
+            dL_dA1  = W2ᵀ · dL_dZ2                 # (4,m)
+            dA1_dZ1 = A1 ⊙ (1 – A1)                # (4,m)
+            dL_dZ1  = dL_dA1 ⊙ dA1_dZ1             # (4,m)
+
+            dL_dW1  = (1/m) · dL_dZ1 · Xᵀ         # (4,3)
+            dL_db1  = (1/m) · sum(dL_dZ1, axis=1)  # (4,1)
+            Weights are then updated once using these averaged gradients.
+
+    EXPLANATION (VECTORIZED)
+        The vectorized backpropagation processes the entire training set in one pass by treating every layer’s activations, pre‑activations, and gradients 
+        as matrices whose columns correspond to examples. After computing the forward pass matrices Z1, A1, Z2, and A2, a single subtraction gives the 
+        derivative of the loss with respect to the output activations for all examples at once. Element‑wise multiplication with the sigmoid gradient 
+        yields dL_dZ2, a matrix containing the upstream gradient for every example. Matrix multiplication then produces the output‑layer weight 
+        gradient dL_dW2; summing over columns gives the bias gradient dL_db2. Propagating into the hidden layer uses the transpose of W2 to distribute 
+        the gradient simultaneously to all hidden units and all examples. Hadamard‑product with the sigmoid derivative produces dL_dZ1. 
+        A final matrix multiplication with Xᵀ and column‑wise summations deliver dL_dW1 and dL_db1. Each gradient matrix is divided by m so it represents 
+        the mean gradient, matching the scale used in a single‑example derivation. This vectorized version eliminates explicit loops, leveraging dense 
+        linear‑algebra libraries to compute gradients for potentially thousands of examples in microseconds, which is why modern deep‑learning code rarely 
+        shows an example‑by‑example backprop loop.
+
+    NOTE:
+        Element-wise operations are essential in neural networks because each neuron’s activation and gradient must be computed independently of others.
+        When applying activation functions like sigmoid or ReLU, or their derivatives during backpropagation, these functions are evaluated separately 
+        for each neuron’s output. This is why we use element-wise multiplication—for instance, multiplying the gradient flowing back from the next 
+        layer (dA) by the derivative of the activation function (sigmoid'(Z)), both applied element by element. Although row-wise or column-wise 
+        operations might seem faster, they would collapse or aggregate the data, which would break the correctness of the backpropagation step.
+        Element-wise computation ensures that the gradient for each neuron is accurately scaled based on its own activation behavior. Thanks to 
+        optimized libraries like NumPy and TensorFlow, these operations are highly efficient under the hood, often using parallelism and broadcasting 
+        to achieve both correctness and speed.
+
+        In neural networks, we often transpose matrices during forward and backward propagation to ensure that their dimensions align correctly for 
+        matrix multiplication. This is essential because operations like dot products require specific shape compatibility — for instance, when 
+        computing Z = W · X + b, the weight matrix W is shaped to match the input matrix X through transposition if needed. Transposing also helps 
+        during backpropagation when calculating gradients. For example, when we compute dW = dZ · A_prev.T, we transpose the activation matrix from 
+        the previous layer so that the resulting gradient dW has the same shape as the weight matrix it is meant to update. Without this alignment, 
+        the operations would be invalid or produce incorrectly shaped outputs. This approach not only ensures correct mathematical computation but 
+        also keeps the matrix shapes consistent across iterations, making the model easier to debug and maintain. Ultimately, using transposes helps 
+        maintain the flow of data in the correct orientation, allowing us to leverage fast, vectorized linear algebra routines efficiently.
+
+Random Initialization:
+    Random initialization of weights is crucial in training neural networks because it breaks symmetry between neurons. If all weights are 
+    initialized to zero, every neuron in a layer will receive the same gradients during backpropagation, causing them to update identically.
+    This means all neurons learn the same features, effectively reducing the model’s capacity and making training ineffective. In contrast,
+    random initialization assigns small random values to weights, ensuring that neurons start with different parameters. This diversity allows 
+    each neuron to learn unique features and the network to converge properly. While zero initialization fails to break symmetry, random 
+    initialization—often scaled based on the layer size using methods like Xavier or He initialization—leads to better and faster training 
+    performance. Therefore, random initialization is widely preferred over zero initialization in practice.
+
+Deep L-Layer Neural Network - Forward & Backward Propagation
+    Architecture:
+        Input: X ∈ ℝⁿˣᵐ
+        L layers: [Linear → Activation] × (L−1) → Linear → Sigmoid
+            Each layer l has:
+                W[l]: weights matrix of shape (n[l], n[l−1])
+                b[l]: bias vector of shape (n[l], 1)
+                Z[l] = W[l]·A[l−1] + b[l]
+                A[l] = activation(Z[l])
+
+    Forward Propagation
+        Set A[0] = X
+        For l = 1 to L:
+            Z[l] = W[l] · A[l−1] + b[l]
+            A[l] = g[l](Z[l])  # g[l] is activation function (e.g. relu, sigmoid)
+
+    Final output:
+        A[L] = Ŷ = sigmoid(Z[L])  # For binary classification
+        Cache Z[l], A[l] for use in backprop.
+
+    Cost Function (Binary Cross-Entropy)
+        J = -(1/m) * ∑( y·log(ŷ) + (1−y)·log(1−ŷ) )
+
+    Backward Propagation
+        Input: Y, A[L], caches from forward pass
+
+        Step 1: Output layer (L)
+            dZ[L] = A[L] − Y
+            dW[L] = (1/m) · dZ[L] · A[L−1].T
+            db[L] = (1/m) · sum(dZ[L], axis=1, keepdims=True)
+
+        Step 2: For l = L−1 down to 1
+            dA[l] = W[l+1].T · dZ[l+1]
+            dZ[l] = dA[l] * g'[Z[l]]  # element-wise
+            dW[l] = (1/m) · dZ[l] · A[l−1].T
+            db[l] = (1/m) · sum(dZ[l], axis=1, keepdims=True)
+        Where:
+            g' is the derivative of the activation function
+            relu'(z) = 1 if z > 0 else 0
+            sigmoid'(z) = sigmoid(z) * (1 - sigmoid(z))
+
+    Parameter Updates
+        For all layers l:
+            W[l] = W[l] − α · dW[l]
+            b[l] = b[l] − α · db[l]
+
+            Where α is the learning rate.
+    Summary
+        Forward pass: compute Z[l], A[l] layer by layer
+        Backward pass: compute gradients dW[l], db[l] backward
+        Update parameters using gradient descent
+
+    NOTE: The neural network implemented above is the simplest form of a neural architecture known as a Feedforward Neural Network (FNN). 
+    In this model, data flows strictly in one direction—from the input layer, through one or more hidden layers, and finally to the output 
+    layer—without any cycles or loops. Each neuron performs a linear transformation followed by a non-linear activation (like tanh or sigmoid).
+    This structure makes FNNs well-suited for tasks like classification and regression where the relationships between input and output are static.
+    Despite its simplicity, this basic FNN can model complex decision boundaries by learning from data through forward and backward propagation.
+
+    Parameters vs Hyperparameters:
+        Parameters are the internal variables that a model learns from data during training. These are adjusted automatically through optimization 
+        (like gradient descent) to minimize loss.
+
+        Examples of Parameters:
+            Weights and biases in neural networks
+            Coefficients in linear/logistic regression
+            Support vectors in SVM
+
+        Hyperparameters are external configurations set before training. They control the learning process and model architecture but are not learned 
+        during training. These are tuned manually or using search methods like grid/random/Optuna.
+
+        Examples of Hyperparameters:
+            Learning rate
+            Number of layers and neurons
+            Batch size
+            Epochs
+            Activation functions
+            Dropout rate
+            Regularization terms (e.g., L2 penalty)
+
+        Key Difference:
+            Parameters = learned from data
+            Hyperparameters = set before training, often tuned through experimentation

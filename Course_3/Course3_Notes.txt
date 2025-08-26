@@ -1,0 +1,230 @@
+Course 3: Structuring Machine Learning Projects
+
+ML Strategy:
+    When we build a machine learning model, and it doesn't perform, then we have many option to work towards, for example:
+    1. Collect more data
+    2. Collect more diverse training set
+    3. Train algorithm longer with gradient descent
+    4. Try Adam instead of gradient descent
+    5. Try bigger network
+    6. Try smaller network
+    7. Try dropout
+    8. Add l2 regularization
+    9. Network architecture
+        i. Activation functions
+        ii. Number of hidden units
+
+    Orthogonalization – Intuition:
+        Imagine an old analog TV with knobs for picture settings—height, width, resolution, etc. Ideally, each knob should control only one aspect. 
+        If adjusting one knob affects multiple settings (e.g., 0.1×knob1 + 0.3×knob2), it's hard to fine-tune the image.
+
+        Orthogonalization ensures each knob (variable/feature) affects only one output—making systems easier to tune, debug, and optimize. It's about 
+        isolating influence for cleaner control.
+
+    Chain assumptions in ML:
+        1. Fit training set well on cost function (~= human-level performance)
+            i. Maybe train a bigger network
+            ii. Switch to Adam optimizer
+            NOTE: When training early stopping Andrew tends to not use early stopping, as you will be affecting both the train and dev set at the same time.
+                  So it is less orthogonal
+
+        2. Fit dev set well on cost function
+            i. Regularization
+            ii. Bigger training set
+
+        3. Fit test set well on cost function
+            i. Bigger dev set
+
+        4. Performs well in real world
+            i. Change either dev set or cost function
+        
+    Single number evaluation metric:
+        When evaluating a model, we might use metrics like precision and recall, but sometimes having more evaluation metric might make the decision
+        process of choosing a better model quite tedious. So in such scenarios we can use a single number metric for example, in this case we could
+        prefer to calculate the f1-score of the model, and then use that to pick the models that are well suited.
+    
+    Satisficing and Optimizing model:
+        Satisficing and optimizing represent two different approaches to selecting a model. Satisficing means choosing a model that is “good enough” to 
+        meet the necessary requirements or thresholds without spending excessive time or resources trying to find the absolute best one.
+        It’s a practical approach often used when quick decisions or limited resources are a factor.
+
+        Optimizing, on the other hand, involves searching for the model that performs the best according to a specific metric or criterion, 
+        aiming for the highest possible performance regardless of the extra effort or complexity. While optimizing can lead to better results, 
+        satisficing balances efficiency and effectiveness, making it useful in real-world scenarios where perfect optimization might be impractical.
+
+        EXAMPLE:
+            N metrics: 1 optimizing
+                       N - 1 satisficing
+
+    Train/dev/test distributions:
+        Choose a dev set and test set to reflect data you expect to get in the future and consider important to do well on.
+
+    Old ways of splitting data:
+        1. 70% - 30%: train-test
+        2. 60% - 20% - 20%: train-dev-test
+        3. 98% - 1% - 1%: train-dev-test
+    
+        NOTE: Set the test set to be big enough to give high confidence in the overall performance of your system.
+              If doing well on your metric + dev/test set does not correspond to doing well on your application, change your metric and/or dev/test set.
+
+    Comparing ML systems to Human level performance:
+        1. The rate of function is very rapid initially.
+        2. The model surpasses human-level performance but then starts slowing down too.
+        3. Reaches Bayes optimal error, which is defined as a theoretical function that produces the best possible error and cannot be surpassed.
+
+    Why compare to human-level performance:
+        Humans are quite good at a lot of tasks. So long as ML is worse than humans, you can:
+            1. Get labeled data from humans.
+            2. Gain insight from manual error analysis:
+                Why did a person get this right?
+            3. Better analysis of bias/variance.
+    
+    Summary of bias / variance with human-level performance:
+        Human-level error (proxy for Bayes error)
+                                                        Avoidable Bias:
+                                                            i. Train bigger model
+                                                            ii. Train longer/better optimization algorithms:
+                                                                - Momentum, RMSprop, Adam
+                                                            iii. NN architecture / hyperparameters search: RNN, CNN
+        Training error
+                                                        Variance:
+                                                            i. Mode data
+                                                            ii. Regularization:
+                                                                - L2, dropout, Data Augmentation
+                                                            iii. NN architecture / hyperparameters search
+        Dev error
+
+Error Analysis:
+    Example:
+        Intuition: Should you try to make your cat classifier do better on dogs?
+        Logic: Instead of wasting months on fine tuning the model for dogs and testing, we could follow the following error analysis steps to make the
+        process much smoother and much quicker to determine if this is worth the effort.
+
+        Error analysis Steps:
+            1. Get ~100 mislabeled dev set examples.
+            2. Count up how many are dogs.
+            3. Count how many errors are due to each cause (e.g., dogs, lighting, blurry images).
+            4. If a large percentage (say, 20–30%) of the errors are from one cause (e.g., dogs), it may be worth targeting that issue.
+            5. If it’s a small percentage, it’s likely not worth the engineering effort.
+
+    Important points on Error Analysis:
+        1. Cleaning Incorrectly Labeled Data & Iteration Strategy
+            Don't over-clean data before building the model.
+            First: Train and deploy a quick baseline system.
+            Then:
+                Run error analysis.
+                Focus cleaning only where it impacts performance (e.g., mislabeled dev/test examples).
+                Prioritize fixes based on frequency/severity of label issues.
+                Iterate fast – measure → fix → test → repeat.
+
+        2. Training & Testing on Different Distributions
+            Real-world data often changes over time (drift).
+            Example:
+                Training data: web images
+                Test data: user-uploaded smartphone photos
+
+            Solution:
+                Have a train-dev set from training distribution
+                Have a dev/test set from target/test distribution
+                Helps detect if overfitting to training set vs not generalizing to target
+
+        3. Bias and Variance with Mismatched Data
+            Use Train, Train-dev, Dev, and Test sets:
+                Train: model learns
+                Train-dev: same distribution as train (checks variance)
+                Dev/Test: target distribution (real-world performance)
+
+            If high error on train → high bias
+            If low train error, but high train-dev error → variance
+            If low train-dev error, but high dev error → data mismatch
+            If dev error ≈ test error → test set is reliable
+
+    Why training-dev set?
+        In cases where training and dev/test sets come from different distributions, it's hard to know whether poor performance is due to overfitting or 
+        distribution mismatch. The training-dev set solves this: it's drawn from the same distribution as the training set but isn't used for training. 
+        This allows you to isolate variance, making it clear whether the model is overfitting the training data itself or simply failing to generalize to 
+        the new data distribution.
+
+Transfer Learning
+    Transfer learning is a powerful technique in machine learning where knowledge gained from training a model on one task is repurposed to help train
+    a model on a different but related task. This is especially useful when the new task has limited labeled data or when training from scratch would
+    be computationally expensive and time-consuming.
+
+    Rather than starting from zero, a pre-trained model serves as a starting point. These models are typically trained on large-scale datasets 
+    (like ImageNet for vision tasks or BERT for NLP) and have learned rich, general-purpose features. These features can often be transferred to new
+    domains where data is scarce or where training a large model from scratch is not feasible.
+
+Pretraining and Fine-Tuning
+    Transfer learning usually involves two major phases:
+
+    Pretraining:
+        This is the first stage where the model is trained on a large dataset from a generic domain. For example, in image classification, a model like 
+        ResNet may be pretrained on ImageNet with millions of images. At this point, the model has learned to detect low and mid-level patterns 
+        (like edges, textures, shapes) that are generally useful across a wide range of visual tasks.
+
+    Fine-Tuning:
+        In the second stage, the pretrained model is adapted to a specific task by continuing training on the target dataset. 
+        During fine-tuning, the earlier layers (which capture general patterns) are often kept intact, while the later layers are adjusted 
+        to specialize in the new task. Depending on the amount of data and similarity to the original task, fine-tuning can involve training 
+        only a few layers or the entire network.
+
+        This approach dramatically reduces training time, allows models to perform better with less data, and often leads to faster iteration 
+        and better generalization.
+
+    Example: Bird Classifier in Peacetopia
+        Suppose you're tasked with building a bird detector for security footage in Peacetopia. You only have 10,000 labeled images of 
+        birds and skies — not enough to train a deep convolutional neural network from scratch.
+
+        Using transfer learning, you start with a ResNet50 model pretrained on ImageNet. Since this model already understands basic visual features, 
+        you only need to fine-tune the last few layers on your specific bird dataset. This allows the model to specialize in distinguishing birds 
+        in skies without having to relearn the fundamentals of image recognition.
+
+        If the task is very different (e.g., satellite imagery vs. natural images), you might unfreeze and retrain more layers. 
+        If it's similar (e.g., bird species classification after general object detection), freezing most layers and retraining only the 
+        final classifier may be enough.
+
+        When to Use Transfer Learning:
+            When labeled data for your task is limited.
+            When computational resources are constrained.
+            When you want fast prototyping and iteration.
+            When the target task is similar to the source task used for pretraining.
+
+Multi-Task Learning (MTL) – Summary
+    Train a single model to perform multiple related tasks at once by sharing representations, improving performance and generalization.
+    How it works:
+        Shared layers learn common features
+        Task-specific heads handle individual outputs
+        Combined loss function used for training
+
+    Benefits:
+        Better generalization, less overfitting
+        Helps low-data tasks via shared learning
+        More efficient than training separate models
+        Acts as regularization
+
+    Example:
+        In Peacetopia, one model detects birds, classifies species, infers weather, and time of day—all using the same CNN backbone with multiple output heads.
+
+    When to use:
+        Tasks are related
+        Data is limited for some tasks
+        You want faster iteration and training efficiency
+
+    Risks:
+        Unrelated tasks can harm performance
+        Task balancing (loss weighting) is tricky
+
+End-to-End Deep Learning:
+    End-to-end deep learning is an approach where a single neural network is trained to perform an entire task from raw input to final output, 
+    learning all intermediate representations automatically. Unlike traditional machine learning pipelines, which break a problem into multiple 
+    hand-engineered stages (e.g., feature extraction, preprocessing, classification), end-to-end models eliminate these manual steps and optimize 
+    everything in a unified process. This allows the model to directly learn the best features and decision boundaries from data, often resulting 
+    in higher performance and reduced human bias in feature design. For instance, in traditional speech recognition systems, audio would pass through 
+    multiple stages such as noise filtering, feature extraction (like MFCCs), acoustic modeling, and language modeling. In contrast, an end-to-end 
+    system like Deep Speech takes raw audio as input and directly outputs the transcription, learning all internal mappings during training. 
+    
+    The main advantage of this approach is its simplicity and ability to learn complex functions without domain-specific engineering. 
+    
+    However, it typically requires large amounts of labeled data and compute resources, and can be more challenging to interpret or debug since the 
+    internal decision-making is not modular. Despite these trade-offs, end-to-end deep learning has become increasingly popular in fields like 
+    computer vision, natural language processing, and speech due to its powerful generalization and minimal manual intervention.
